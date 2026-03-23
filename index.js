@@ -11,7 +11,7 @@ const startServer = async () => {
   deadlineLockJob.start();
 
   const server = app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV}]`);
+    logger.info(`Server running on port ${PORT ?? 3000} [${process.env.NODE_ENV ?? 'development'}]`);
   });
 
   // Graceful shutdown

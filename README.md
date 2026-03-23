@@ -63,6 +63,54 @@ This repository is now cleaned to a MySQL-only backend and currently focuses on:
 npm install
 ```
 
+## Docker Setup
+
+This project includes a ready-to-run Docker setup for:
+- Backend API
+- MySQL 8
+- phpMyAdmin
+
+Files:
+- `Dockerfile`
+- `docker-compose.yml`
+- `.dockerignore`
+- `.env.docker.example`
+
+### Start the full stack
+```bash
+docker compose up --build
+```
+
+If port `5000` is already taken on your machine, this setup exposes the backend on host port `5001` by default.
+You can change it by setting `APP_HOST_PORT`.
+
+### Services
+- Backend API: `http://localhost:5001`
+- Health check: `http://localhost:5001/health`
+- phpMyAdmin: `http://localhost:8080`
+- MySQL host from local machine: `127.0.0.1:3306`
+
+### Default Docker credentials
+- MySQL database: `new_fpl`
+- MySQL user: `root`
+- MySQL password: `root`
+- phpMyAdmin server host: `mysql`
+
+### Notes
+- The schema is auto-imported on first MySQL startup from `database/schema.sql`.
+- Database files are stored in the Docker volume `mysql_data`.
+- Container port stays `5000`, host port defaults to `5001` to avoid macOS conflicts.
+- If you want to reset the database completely:
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+### Stop the stack
+```bash
+docker compose down
+```
+
 ### 2) Configure environment
 Copy `.env.example` to `.env` and set values.
 
