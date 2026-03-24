@@ -118,6 +118,10 @@ function App() {
   }, [])
 
   useEffect(() => {
+    setSelectedFixture(null)
+  }, [selectedLeagueSeason])
+
+  useEffect(() => {
     const fetchPlayers = async () => {
       if (!authToken || !selectedLeagueSeason) return
 
@@ -293,6 +297,7 @@ function App() {
           captainId: Number(captainId),
           viceCaptainId: Number(viceCaptainId),
           budgetCap,
+          leagueSeasonId: selectedLeagueSeason,
         }),
       })
 

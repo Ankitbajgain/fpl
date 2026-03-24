@@ -3,8 +3,9 @@ import { toggleFavorite } from '../../features/squad/squadSlice'
 
 export function PlayerCard({ player, isSelected, onToggle, mode }) {
   const dispatch = useDispatch()
-  const { favorites } = useSelector((state) => state.squad)
-  const isFavorite = favorites.includes(player.id)
+  const { favorites, selectedLeagueSeason } = useSelector((state) => state.squad)
+  const leagueFavorites = selectedLeagueSeason ? favorites[selectedLeagueSeason] || [] : []
+  const isFavorite = leagueFavorites.includes(player.id)
 
   return (
     <article

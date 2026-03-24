@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
+import { selectLeague } from '../../features/squad/squadSlice'
 
 export function FixtureSelector({ selectedFixture, onSelectFixture }) {
+  const dispatch = useDispatch()
   const { selectedLeagueSeason, authToken } = useSelector((state) => state.squad)
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(false)
@@ -44,7 +46,17 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
   if (!fixtures?.length) {
     return (
       <div className="rounded-2xl bg-white p-6 text-center text-sm text-[#5f6a76]">
-        No fixtures available for this league.
+        <p>No fixtures available for this league.</p>
+        <button
+          type="button"
+          onClick={() => {
+            onSelectFixture(null)
+            dispatch(selectLeague(null))
+          }}
+          className="mt-3 rounded-lg border border-[#d8cfbf] px-3 py-1.5 text-xs font-semibold text-[#38424d] hover:bg-[#f7f2e9]"
+        >
+          Choose Another League
+        </button>
       </div>
     )
   }

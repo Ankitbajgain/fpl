@@ -7,13 +7,29 @@ const {
   calculateCricketFantasyPoints,
 } = require('./gameplay.rules');
 
-const getPlayersByIds = async (playerIds) => {
+const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
   if (!playerIds.length) return [];
   const placeholders = playerIds.map(() => '?').join(',');
-  const [rows] = await pool.query(
-    `SELECT id, role, franchise_id, credit_price FROM players WHERE id IN (${placeholders}) AND is_active = 1`,
-    playerIds
-  );
+
+  let rows;
+  if (leagueSeasonId) {
+    [rows] = await pool.query(
+      `SELECT p.id, p.role, p.franchise_id, lsp.base_credits AS credit_price
+       FROM league_season_players lsp
+       JOIN players p ON p.id = lsp.player_id
+       WHERE p.id IN (${placeholders})
+         AND p.is_active = 1
+         AND lsp.league_season_id = ?
+         AND lsp.is_active = 1`,
+      [...playerIds, leagueSeasonId]
+    );
+  } else {
+    [rows] = await pool.query(
+      `SELECT id, role, franchise_id, credit_price FROM players WHERE id IN (${placeholders}) AND is_active = 1`,
+      playerIds
+    );
+  }
+
   return rows;
 };
 
@@ -102,8 +118,8 @@ const listActivePlayers = async () => {
   }));
 };
 
-const validateSquadSelection = async ({ playerIds, captainId, viceCaptainId, budgetCap = 100 }) => {
-  const players = await getPlayersByIds(playerIds);
+const validateSquadSelection = async ({ playerIds, captainId, viceCaptainId, budgetCap = 100, leagueSeasonId = null }) => {
+  const players = await getPlayersByIds(playerIds, leagueSeasonId);
   if (players.length !== playerIds.length) {
     throw new Error('One or more selected players are invalid or inactive');
   }

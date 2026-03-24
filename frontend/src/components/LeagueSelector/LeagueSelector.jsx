@@ -1,39 +1,58 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { setLeagues, setLeaguesLoading, selectLeague } from '../../features/squad/squadSlice'
+import { setLeagues, setLeaguesLoading, selectLeague, setLeaguesError } from '../../features/squad/squadSlice'
 
 export function LeagueSelector() {
   const dispatch = useDispatch()
-  const { leagues, selectedLeagueSeason, leaguesLoading, authToken } = useSelector((state) => state.squad)
+  const { leagues, selectedLeagueSeason, leaguesLoading, leaguesError, authToken } = useSelector((state) => state.squad)
+  const hasFetchedLeaguesRef = useRef(false)
+
+  const fetchLeagues = async () => {
+    if (!authToken || leaguesLoading) return
+
+    dispatch(setLeaguesLoading(true))
+    dispatch(setLeaguesError(null))
+
+    try {
+      const response = await fetch('/api/v1/gameplay/leagues', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      })
+      const payload = await response.json()
+
+      if (!response.ok || !payload.success || !Array.isArray(payload.data)) {
+        dispatch(setLeaguesError(payload.message || 'Unable to load leagues'))
+        return
+      }
+
+      dispatch(setLeagues(payload.data))
+      if (!selectedLeagueSeason && payload.data.length > 0) {
+        const activeWithFixtures = payload.data.find(
+          (l) => l.status === 'active' && Number(l.totalFixtures || 0) > 0,
+        )
+        const activeLeague = payload.data.find((l) => l.status === 'active') || payload.data[0]
+        dispatch(selectLeague((activeWithFixtures || activeLeague).id))
+      }
+    } catch {
+      dispatch(setLeaguesError('Network error while loading leagues'))
+    } finally {
+      dispatch(setLeaguesLoading(false))
+    }
+  }
 
   // Fetch available leagues on mount
   useEffect(() => {
-    const fetchLeagues = async () => {
-      if (!authToken || leaguesLoading) return
-
-      dispatch(setLeaguesLoading(true))
-      try {
-        const response = await fetch('/api/v1/gameplay/leagues', {
-          headers: { Authorization: `Bearer ${authToken}` },
-        })
-        const payload = await response.json()
-        if (payload.success && Array.isArray(payload.data)) {
-          dispatch(setLeagues(payload.data))
-          // Auto-select first active league if none selected
-          if (!selectedLeagueSeason && payload.data.length > 0) {
-            const activeLeague = payload.data.find((l) => l.status === 'active') || payload.data[0]
-            dispatch(selectLeague(activeLeague.id))
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch leagues:', error)
-      } finally {
-        dispatch(setLeaguesLoading(false))
-      }
+    if (!authToken || selectedLeagueSeason || leagues.length > 0 || hasFetchedLeaguesRef.current) {
+      return
     }
 
+    hasFetchedLeaguesRef.current = true
     fetchLeagues()
-  }, [authToken, dispatch, leaguesLoading, selectedLeagueSeason])
+  }, [authToken, leagues.length, selectedLeagueSeason])
+
+  const retryFetchLeagues = () => {
+    hasFetchedLeaguesRef.current = false
+    fetchLeagues()
+  }
 
   if (leaguesLoading) {
     return (
@@ -46,7 +65,14 @@ export function LeagueSelector() {
   if (!leagues?.length) {
     return (
       <div className="rounded-2xl bg-white p-6 text-center text-sm text-[#5f6a76]">
-        No leagues available at this time.
+        <p>{leaguesError || 'No leagues available at this time.'}</p>
+        <button
+          type="button"
+          onClick={retryFetchLeagues}
+          className="mt-3 rounded-lg border border-[#d8cfbf] px-3 py-1.5 text-xs font-semibold text-[#38424d] hover:bg-[#f7f2e9]"
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -80,7 +106,6 @@ export function LeagueSelector() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-heading text-lg leading-tight">{league.name}</h3>
-                    <span className="text-xl">{league.flag}</span>
                   </div>
 
                   <p className="mt-1 text-xs uppercase tracking-[0.12em] text-[#6a7683]">
@@ -119,7 +144,7 @@ export function LeagueSelector() {
       </div>
 
       <div className="rounded-2xl bg-[#eef9f5] p-4 text-sm text-[#0e6f59]">
-        <p className="font-semibold">💡 Multi-League Play</p>
+        <p className="font-semibold">Multi-League Play</p>
         <p className="mt-1 text-xs leading-relaxed">
           Players appear in multiple leagues with different credit prices. Virat Kohli plays for RCB (IPL) and
           Islamabad United (PSL), but his nationality is India. Build separate squads for each league!
