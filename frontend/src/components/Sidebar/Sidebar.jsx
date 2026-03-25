@@ -13,10 +13,19 @@ export function Sidebar({
   validateLoading,
   validationResult,
   validationError,
+  transferMeta,
+  transferMetaLoading,
+  transferMetaError,
+  transferPolicy,
+  transferPolicyLoading,
+  transferPolicyError,
+  applyLoading,
+  applyMessage,
   onModeChange,
   onCaptainChange,
   onViceCaptainChange,
   onValidate,
+  onApplyTransfers,
   onLogout,
 }) {
   return (
@@ -35,9 +44,18 @@ export function Sidebar({
         validateLoading={validateLoading}
         validationResult={validationResult}
         validationError={validationError}
+        transferMeta={transferMeta}
+        transferMetaLoading={transferMetaLoading}
+        transferMetaError={transferMetaError}
+        transferPolicy={transferPolicy}
+        transferPolicyLoading={transferPolicyLoading}
+        transferPolicyError={transferPolicyError}
+        applyLoading={applyLoading}
+        applyMessage={applyMessage}
         onCaptainChange={onCaptainChange}
         onViceCaptainChange={onViceCaptainChange}
         onValidate={onValidate}
+        onApplyTransfers={onApplyTransfers}
         onLogout={onLogout}
       />
     </aside>

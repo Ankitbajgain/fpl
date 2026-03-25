@@ -1,5 +1,6 @@
 export function FilterPanel({
   mode,
+  homeCountry,
   creditSort,
   homeAwayFilter,
   teamFilter,
@@ -9,9 +10,10 @@ export function FilterPanel({
   onCreditSortChange,
   onHomeAwayChange,
   onTeamFilterChange,
+  isLocked,
 }) {
   return (
-    <div className="space-y-3 rounded-xl bg-[#f8f2e8] p-3">
+    <div className={`space-y-3 rounded-xl p-3 ${isLocked ? 'bg-red-50' : 'bg-[#f8f2e8]'}`}>
       <div>
         <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a7683]">
           Search
@@ -21,7 +23,8 @@ export function FilterPanel({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Name, team, country..."
-          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm"
+          disabled={isLocked}
+          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm disabled:opacity-60"
         />
       </div>
 
@@ -32,7 +35,8 @@ export function FilterPanel({
         <select
           value={creditSort}
           onChange={(e) => onCreditSortChange(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm"
+          disabled={isLocked}
+          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm disabled:opacity-60"
         >
           <option value="desc">High to Low</option>
           <option value="asc">Low to High</option>
@@ -47,10 +51,11 @@ export function FilterPanel({
           <select
             value={homeAwayFilter}
             onChange={(e) => onHomeAwayChange(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm"
+            disabled={isLocked}
+            className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm disabled:opacity-60"
           >
             <option value="all">All Players</option>
-            <option value="home">Home (India)</option>
+            <option value="home">Home ({homeCountry || 'League'})</option>
             <option value="away">Away 🛫</option>
           </select>
         </div>
@@ -63,7 +68,8 @@ export function FilterPanel({
         <select
           value={teamFilter}
           onChange={(e) => onTeamFilterChange(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm"
+          disabled={isLocked}
+          className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm disabled:opacity-60"
         >
           <option value="">All Teams</option>
           {allTeams.map((team) => (

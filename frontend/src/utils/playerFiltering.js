@@ -1,7 +1,10 @@
 // Player filtering and sorting logic
 
-export const getHomeCountry = (mode) => {
-  return mode === 'Classic' ? 'India' : null
+const normalizeCountry = (value) => String(value || '').trim().toLowerCase()
+
+export const getHomeCountry = (mode, leagueNation) => {
+  if (mode !== 'Classic') return null
+  return leagueNation || 'India'
 }
 
 export const getUniqueTeams = (players) => {
@@ -14,12 +17,12 @@ export const filterPlayersByRole = (players, role) => {
 }
 
 export const applyHomeAwayFilter = (players, mode, filter, homeCountry) => {
-  if (mode !== 'Classic' || filter === 'all') {
+  if (mode !== 'Classic' || filter === 'all' || !homeCountry) {
     return players
   }
 
   return players.filter((player) => {
-    const isHome = player.country === homeCountry
+    const isHome = normalizeCountry(player.country) === normalizeCountry(homeCountry)
     return filter === 'home' ? isHome : !isHome
   })
 }

@@ -7,6 +7,39 @@ const ROLE_LIMITS = {
   BOWL: { min: 3, max: 6 },
 }
 
+const normalizeName = (value) => String(value || '').trim().toLowerCase()
+
+const dedupeIds = (ids) => {
+  const seen = new Set()
+  const unique = []
+  for (const rawId of ids || []) {
+    const id = Number(rawId)
+    if (!Number.isFinite(id) || seen.has(id)) continue
+    seen.add(id)
+    unique.push(id)
+  }
+  return unique
+}
+
+const clampSelectionByBudget = (ids, players, budgetCap) => {
+  const uniqueIds = dedupeIds(ids)
+  const playerById = new Map(players.map((p) => [Number(p.id), p]))
+  const finalIds = []
+  let total = 0
+
+  for (const id of uniqueIds) {
+    if (finalIds.length >= 11) break
+    const player = playerById.get(id)
+    if (!player) continue
+    const credit = Number(player.credits || 0)
+    if (total + credit > budgetCap) continue
+    finalIds.push(id)
+    total += credit
+  }
+
+  return finalIds
+}
+
 const initialState = {
   // Multi-league support
   leagues: [],                    // Available leagues [{ id, name, competition, nation, ... }]
@@ -99,6 +132,13 @@ const squadSlice = createSlice({
       const roleLimit = ROLE_LIMITS[player.role]
       if (roleLimit && roleCount >= roleLimit.max) return
 
+      const selectedPlayers = state.selectedIds
+        .map((playerId) => state.players.find((item) => item.id === playerId))
+        .filter(Boolean)
+      const creditsUsed = selectedPlayers.reduce((sum, selectedPlayer) => sum + Number(selectedPlayer.credits || 0), 0)
+
+      if (creditsUsed + Number(player.credits || 0) > state.budgetCap) return
+
       if (state.selectedIds.length < 11) {
         state.selectedIds.push(id)
       }
@@ -113,23 +153,42 @@ const squadSlice = createSlice({
     },
     
     setPlayers(state, action) {
-      const players = action.payload
-      const playerIds = new Set(players.map((player) => player.id))
+      const players = Array.isArray(action.payload) ? action.payload : []
 
-      state.players = players
-      state.selectedIds = state.selectedIds.filter((id) => playerIds.has(id))
+      // Keep only one card per real player name to avoid duplicate picks in UI.
+      const byName = new Map()
+      for (const player of players) {
+        const key = normalizeName(player.name)
+        if (!key) continue
+
+        const existing = byName.get(key)
+        if (!existing || Number(player.credits || 0) > Number(existing.credits || 0)) {
+          byName.set(key, player)
+        }
+      }
+
+      const normalizedPlayers = Array.from(byName.values())
+      const playerIds = new Set(normalizedPlayers.map((player) => Number(player.id)))
+
+      state.players = normalizedPlayers
+      state.selectedIds = clampSelectionByBudget(
+        state.selectedIds.filter((id) => playerIds.has(Number(id))),
+        normalizedPlayers,
+        state.budgetCap,
+      )
       
       // Update favorites for current league
       if (state.selectedLeagueSeason) {
         const leagueFavorites = state.favorites[state.selectedLeagueSeason] || []
-        state.favorites[state.selectedLeagueSeason] = leagueFavorites.filter((id) => playerIds.has(id))
+        state.favorites[state.selectedLeagueSeason] = dedupeIds(leagueFavorites).filter((id) => playerIds.has(id))
       }
     },
     
     setSelectedIds(state, action) {
       const nextIds = Array.isArray(action.payload) ? action.payload : []
-      const validIds = new Set(state.players.map((player) => player.id))
-      state.selectedIds = nextIds.filter((id) => validIds.has(id)).slice(0, 11)
+      const validIds = new Set(state.players.map((player) => Number(player.id)))
+      const filtered = dedupeIds(nextIds).filter((id) => validIds.has(id))
+      state.selectedIds = clampSelectionByBudget(filtered, state.players, state.budgetCap)
     },
     
     toggleFavorite(state, action) {

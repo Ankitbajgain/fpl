@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const gameplayController = require('./gameplay.controller');
-const { protect } = require('../../middlewares/auth.middleware');
+const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
 // All gameplay routes require a valid bearer token.
 router.use(protect);
@@ -18,6 +18,15 @@ router.get('/leagues/:leagueSeasonId/fixtures', gameplayController.getLeagueFixt
 
 // Fetch players for a specific league season (replaces generic /players for multi-league)
 router.get('/leagues/:leagueSeasonId/players', gameplayController.getPlayersForLeague);
+
+// Apply/snapshot squad transfers for a fixture (auto-defers to next fixture if current is already started).
+router.post('/leagues/:leagueSeasonId/fixtures/:fixtureId/squad/apply', gameplayController.applySquadTransfers);
+
+// Read transfer policy for a league season.
+router.get('/leagues/:leagueSeasonId/transfers/policy', gameplayController.getLeagueTransferPolicy);
+
+// Admin updates transfer policy (used by upcoming admin dashboard).
+router.put('/leagues/:leagueSeasonId/transfers/policy', restrictTo('admin'), gameplayController.updateLeagueTransferPolicy);
 
 // ============================================================================
 // LEGACY ENDPOINTS (Backward compatibility)

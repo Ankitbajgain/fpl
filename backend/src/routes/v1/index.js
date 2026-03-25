@@ -16,4 +16,7 @@ router.use('/auth', require('../../modules/auth/auth.routes'));
 // Gameplay utility routes: squad validation, scoring, transfers, prediction, quiz.
 router.use('/gameplay', require('../../modules/gameplay/gameplay.routes'));
 
+// Admin dashboard routes: fixture management and transfer policy controls.
+router.use('/admin', require('../../modules/admin/admin.routes'));
+
 module.exports = router;

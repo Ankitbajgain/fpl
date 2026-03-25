@@ -1,0 +1,159 @@
+:root {
+  --bg: #f4efe8;
+  --ink: #21313a;
+  --panel: #ffffff;
+  --line: #d8cdbd;
+  --accent: #0b7a62;
+  --accent-2: #ea7f48;
+  --danger: #a71d31;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top right, #ffe3cf, #f4efe8 42%, #efe6d8 100%);
+  color: var(--ink);
+}
+
+.shell {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.topbar h1 { margin: 0; letter-spacing: .02em; }
+.topbar p { margin: 4px 0 0; color: #587082; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+}
+
+.left-col, .right-col {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 10px 20px rgba(45, 53, 60, .08);
+}
+
+.login-panel { width: min(420px, 92vw); }
+
+.panel h2, .panel h3, .panel h1 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.grid {
+  display: grid;
+  gap: 10px;
+}
+
+.grid.two { grid-template-columns: 1fr 1fr; }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+  .grid.three, .grid.two { grid-template-columns: 1fr; }
+}
+
+label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #60707d;
+}
+
+input, select, textarea {
+  width: 100%;
+  border: 1px solid #d7d1c8;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+  font-size: 14px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.secondary { background: #2b3e47; }
+button.danger { background: var(--danger); }
+button:disabled { opacity: .6; cursor: not-allowed; }
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fixture-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.fixture-card {
+  border: 1px solid #e7dfd3;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fffdf9;
+}
+
+.fixture-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.flash {
+  padding: 10px 12px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.flash.ok { background: #d8f3ea; color: #0d5948; }
+.flash.err { background: #f9dde1; color: #7c1929; }
+
+.muted { color: #647988; font-size: 13px; }
+.error-text { color: #8b1a2f; }
+
+.badge.open { border-color: #97d8c8; background: #edf9f5; }
+.badge.locked { border-color: #ef9ba8; background: #ffeff1; }
+.timer {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  margin: 8px 0;
+}

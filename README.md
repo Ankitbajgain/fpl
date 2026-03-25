@@ -4,6 +4,7 @@ This repository contains two separate applications:
 
 - Backend API: [backend](backend)
 - Frontend app: [frontend](frontend)
+- Admin dashboard app: [dashboard](dashboard)
 
 The backend source of truth is the [backend](backend) directory. There is no supported backend runtime under the repository root.
 
@@ -11,6 +12,7 @@ The backend source of truth is the [backend](backend) directory. There is no sup
 
 - Backend documentation: [backend/README.md](backend/README.md)
 - Frontend documentation: [frontend/README.md](frontend/README.md)
+- Dashboard documentation: [dashboard/README.md](dashboard/README.md)
 
 ## Quick Start
 
@@ -37,6 +39,18 @@ npm run dev
 Frontend URL:
 
 - http://localhost:5173
+
+### 3) Start admin dashboard
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Dashboard URL:
+
+- http://localhost:5175
 
 ## Full Stack (Optional)
 
@@ -75,9 +89,15 @@ npm run smoke:multi-league
 ## Notes
 
 - Frontend dev proxy forwards `/api` calls to backend (`http://localhost:5001`).
-- Load backend demo data (if needed):
+- Recommended backend SQL sequence:
 
 ```bash
 cd backend
 docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/demo-seed.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-real-multi-league.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/create-transfer-policy.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/cleanup-duplicate-players.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/backfill-player-nationalities.sql
 ```
+
+- Optional maintenance SQL scripts are documented in [backend/README.md](backend/README.md).

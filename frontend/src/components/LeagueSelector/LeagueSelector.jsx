@@ -87,7 +87,8 @@ export function LeagueSelector() {
       <div className="space-y-3">
         {leagues.map((league) => {
           const isSelected = selectedLeagueSeason === league.id
-          const isActive = league.status === 'active'
+          const hasFixtures = Number(league.totalFixtures || 0) > 0
+          const isActive = league.status === 'active' && hasFixtures
 
           return (
             <button
@@ -120,6 +121,11 @@ export function LeagueSelector() {
                     <span className="rounded-full bg-[#e7f4ef] px-2.5 py-1 text-xs font-semibold text-[#0e6f59]">
                       {league.totalFixtures} Fixtures
                     </span>
+                    {!hasFixtures ? (
+                      <span className="rounded-full bg-[#fff3cd] px-2.5 py-1 text-xs font-semibold text-[#856404]">
+                        Fixtures not seeded
+                      </span>
+                    ) : null}
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                         isActive

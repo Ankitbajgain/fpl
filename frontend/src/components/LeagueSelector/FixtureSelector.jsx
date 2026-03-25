@@ -7,12 +7,14 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
   const { selectedLeagueSeason, authToken } = useSelector((state) => state.squad)
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const fetchFixtures = async () => {
       if (!selectedLeagueSeason || !authToken) return
 
       setLoading(true)
+      setError('')
       try {
         const response = await fetch(`/api/v1/gameplay/leagues/${selectedLeagueSeason}/fixtures`, {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -24,16 +26,20 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
           if (!selectedFixture && payload.data.length > 0) {
             onSelectFixture(payload.data[0])
           }
+        } else {
+          setFixtures([])
+          setError(payload.message || 'Unable to load fixtures for this league.')
         }
-      } catch (error) {
-        console.error('Failed to fetch fixtures:', error)
+      } catch {
+        setFixtures([])
+        setError('Network error while loading fixtures.')
       } finally {
         setLoading(false)
       }
     }
 
     fetchFixtures()
-  }, [selectedLeagueSeason, authToken, selectedFixture, onSelectFixture])
+  }, [selectedLeagueSeason, authToken, onSelectFixture])
 
   if (loading) {
     return (
@@ -47,6 +53,7 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
     return (
       <div className="rounded-2xl bg-white p-6 text-center text-sm text-[#5f6a76]">
         <p>No fixtures available for this league.</p>
+        {error ? <p className="mt-2 text-xs text-red-600">{error}</p> : null}
         <button
           type="button"
           onClick={() => {

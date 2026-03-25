@@ -40,6 +40,7 @@ function App() {
     validationResult,
     validationError,
     selectedLeagueSeason,
+    leagues,
   } = useSelector((state) => state.squad)
 
   // Auth hook
@@ -65,6 +66,14 @@ function App() {
   const [teamFilter, setTeamFilter] = useState('')
   const [selectionMessage, setSelectionMessage] = useState('')
   const [validateLoading, setValidateLoading] = useState(false)
+  const [applyLoading, setApplyLoading] = useState(false)
+  const [applyMessage, setApplyMessage] = useState('')
+  const [transferMeta, setTransferMeta] = useState(null)
+  const [transferMetaLoading, setTransferMetaLoading] = useState(false)
+  const [transferMetaError, setTransferMetaError] = useState('')
+  const [transferPolicy, setTransferPolicy] = useState(null)
+  const [transferPolicyLoading, setTransferPolicyLoading] = useState(false)
+  const [transferPolicyError, setTransferPolicyError] = useState('')
   const [captainId, setCaptainId] = useState(selectedIds[0] ?? '')
   const [viceCaptainId, setViceCaptainId] = useState(selectedIds[1] ?? '')
   const [authNotice, setAuthNotice] = useState('')
@@ -88,7 +97,12 @@ function App() {
     [selectedPlayers],
   )
 
-  const homeCountry = useMemo(() => getHomeCountry(mode), [mode])
+  const selectedLeague = useMemo(
+    () => leagues.find((league) => league.id === selectedLeagueSeason) || null,
+    [leagues, selectedLeagueSeason],
+  )
+
+  const homeCountry = useMemo(() => getHomeCountry(mode, selectedLeague?.nation), [mode, selectedLeague])
   const allTeams = useMemo(() => getUniqueTeams(players), [players])
 
   const filteredPlayers = useMemo(() => {
@@ -119,7 +133,83 @@ function App() {
 
   useEffect(() => {
     setSelectedFixture(null)
+    setTransferMeta(null)
+    setTransferMetaError('')
+    setTransferPolicy(null)
+    setTransferPolicyError('')
+    setApplyMessage('')
   }, [selectedLeagueSeason])
+
+  useEffect(() => {
+    const fetchTransferPolicy = async () => {
+      if (!authToken || !selectedLeagueSeason) return
+
+      setTransferPolicyLoading(true)
+      setTransferPolicyError('')
+
+      try {
+        const response = await fetch(`/api/v1/gameplay/leagues/${selectedLeagueSeason}/transfers/policy`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        })
+        const payload = await response.json()
+
+        if (!response.ok || !payload.success) {
+          setTransferPolicyError(payload.message || 'Unable to load transfer policy')
+          setTransferPolicyLoading(false)
+          return
+        }
+
+        setTransferPolicy(payload.data)
+        setTransferPolicyLoading(false)
+      } catch {
+        setTransferPolicyError('Network error while loading transfer policy')
+        setTransferPolicyLoading(false)
+      }
+    }
+
+    fetchTransferPolicy()
+  }, [authToken, selectedLeagueSeason])
+
+  useEffect(() => {
+    const fetchTransferMeta = async () => {
+      if (!authToken || !selectedLeagueSeason || !selectedFixture) return
+
+      setTransferMetaLoading(true)
+      setTransferMetaError('')
+
+      try {
+        const response = await fetch('/api/v1/gameplay/transfers/meta', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            usedTransfers: 0,
+            freeTransfers: 0,
+            fixtureStartAt: selectedFixture.startsAt,
+            tossAt: selectedFixture.tossAt,
+            leagueSeasonId: selectedLeagueSeason,
+          }),
+        })
+
+        const payload = await response.json()
+        if (!response.ok || !payload.success) {
+          setTransferMetaError(payload.message || 'Unable to fetch transfer window details')
+          setTransferMetaLoading(false)
+          return
+        }
+
+        setTransferMeta(payload.data)
+        setTransferMetaLoading(false)
+      } catch {
+        setTransferMetaError('Network error while loading transfer details')
+        setTransferMetaLoading(false)
+      }
+    }
+
+    fetchTransferMeta()
+  }, [authToken, selectedLeagueSeason, selectedFixture])
 
   useEffect(() => {
     const fetchPlayers = async () => {
@@ -189,6 +279,34 @@ function App() {
       return
     }
 
+    const normalizedName = String(player.name || '').trim().toLowerCase()
+    const hasSameName = selectedPlayers.some(
+      (selectedPlayer) =>
+        selectedPlayer.id !== player.id && String(selectedPlayer.name || '').trim().toLowerCase() === normalizedName,
+    )
+    if (hasSameName) {
+      setSelectionMessage('Duplicate player is not allowed in squad.')
+      return
+    }
+
+    const normalizeCountry = (value) => String(value || '').trim().toLowerCase()
+    const awayCount = selectedPlayers.filter(
+      (selectedPlayer) => normalizeCountry(selectedPlayer.country) !== normalizeCountry(homeCountry),
+    ).length
+    const nextIsAway = normalizeCountry(player.country) !== normalizeCountry(homeCountry)
+    if (mode === 'Classic' && nextIsAway && awayCount >= 4) {
+      setSelectionMessage('Maximum 4 away players are allowed.')
+      return
+    }
+
+    const sameTeamCount = selectedPlayers.filter(
+      (selectedPlayer) => String(selectedPlayer.team || '').trim().toLowerCase() === String(player.team || '').trim().toLowerCase(),
+    ).length
+    if (sameTeamCount >= 7) {
+      setSelectionMessage(`Maximum 7 players are allowed from ${player.team}.`)
+      return
+    }
+
     if (creditsUsed + player.credits > budgetCap) {
       setSelectionMessage(`Budget exceeded. Total cannot be above ${budgetCap} credits.`)
       return
@@ -240,13 +358,22 @@ function App() {
       }
 
       const total = picked.reduce((sum, player) => sum + player.credits, 0)
+      const awayCount = picked.filter(
+        (player) => String(player.country || '').trim().toLowerCase() !== String(homeCountry || '').trim().toLowerCase(),
+      ).length
+      const teamCounts = picked.reduce((acc, player) => {
+        const teamKey = String(player.team || '').trim().toLowerCase()
+        acc[teamKey] = (acc[teamKey] || 0) + 1
+        return acc
+      }, {})
+      const exceedsTeamLimit = Object.values(teamCounts).some((count) => count > 7)
 
-      if (total <= budgetCap && total > bestTotal) {
+      if (total <= budgetCap && awayCount <= 4 && !exceedsTeamLimit && total > bestTotal) {
         bestSelection = picked
         bestTotal = total
       }
 
-      if (Math.abs(total - budgetCap) < 0.001) {
+      if (Math.abs(total - budgetCap) < 0.001 && awayCount <= 4 && !exceedsTeamLimit) {
         bestSelection = picked
         bestTotal = total
         break
@@ -254,7 +381,7 @@ function App() {
     }
 
     if (!bestSelection) {
-      setSelectionMessage('Could not find a random 11-player squad within 100 credits. Try again.')
+      setSelectionMessage('Could not find a random 11-player squad within 100 credits, max 4 away players, and max 7 players per team. Try again.')
       return
     }
 
@@ -324,6 +451,85 @@ function App() {
     setAuthNotice('')
   }
 
+  const handleApplyTransfers = async () => {
+    if (!authToken || !selectedLeagueSeason || !selectedFixture) {
+      setApplyMessage('Select league and fixture first.')
+      return
+    }
+
+    if (selectedIds.length !== 11) {
+      setApplyMessage('Select exactly 11 players before applying transfers.')
+      return
+    }
+
+    if (!captainId || !viceCaptainId || Number(captainId) === Number(viceCaptainId)) {
+      setApplyMessage('Captain and vice-captain must be different selected players.')
+      return
+    }
+
+    setApplyLoading(true)
+    setApplyMessage('')
+
+    try {
+      const response = await fetch(
+        `/api/v1/gameplay/leagues/${selectedLeagueSeason}/fixtures/${selectedFixture.id}/squad/apply`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            playerIds: selectedIds,
+            captainId: Number(captainId),
+            viceCaptainId: Number(viceCaptainId),
+            budgetCap,
+          }),
+        },
+      )
+
+      const payload = await response.json()
+      if (!response.ok || !payload.success) {
+        setApplyMessage(payload.message || 'Failed to apply transfers')
+        setApplyLoading(false)
+        return
+      }
+
+      const result = payload.data
+      const scopeText = result.deferredToNextFixture
+        ? `Applied to upcoming fixture #${result.appliedToFixtureId} (current fixture already started).`
+        : `Applied to fixture #${result.appliedToFixtureId}.`
+
+      setApplyMessage(`${scopeText} Transfers used now: ${result.transfersUsed}.`)
+
+      // Refresh transfer meta after successful apply
+      const metaResponse = await fetch('/api/v1/gameplay/transfers/meta', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          usedTransfers: 0,
+          freeTransfers: 0,
+          fixtureStartAt: selectedFixture.startsAt,
+          tossAt: selectedFixture.tossAt,
+          leagueSeasonId: selectedLeagueSeason,
+        }),
+      })
+
+      const metaPayload = await metaResponse.json()
+      if (metaResponse.ok && metaPayload.success) {
+        setTransferMeta(metaPayload.data)
+      }
+
+      setApplyLoading(false)
+    } catch {
+      setApplyMessage('Network error while applying transfers.')
+      setApplyLoading(false)
+    }
+  }
+
   // Render: Not authenticated
   if (!authToken || !currentUser) {
     return (
@@ -369,15 +575,25 @@ function App() {
             validateLoading={validateLoading}
             validationResult={validationResult}
             validationError={validationError}
+            transferMeta={transferMeta}
+            transferMetaLoading={transferMetaLoading}
+            transferMetaError={transferMetaError}
+            transferPolicy={transferPolicy}
+            transferPolicyLoading={transferPolicyLoading}
+            transferPolicyError={transferPolicyError}
+            applyLoading={applyLoading}
+            applyMessage={applyMessage}
             onModeChange={(newMode) => dispatch(setMode(newMode))}
             onCaptainChange={setCaptainId}
             onViceCaptainChange={setViceCaptainId}
             onValidate={handleValidateSquad}
+            onApplyTransfers={handleApplyTransfers}
             onLogout={handleLogout}
           />
 
           <PlayerPool
             mode={mode}
+            homeCountry={homeCountry}
             activeTab={activeRoleTab}
             displayedPlayers={displayedPlayers}
             selectedIds={selectedIds}
@@ -389,6 +605,7 @@ function App() {
             playersLoading={playersLoading}
             playersError={playersError}
             selectionMessage={selectionMessage}
+            transferWindowLocked={transferMeta?.locked || false}
             onTabChange={(tab) => {
               setActiveRoleTab(tab)
               setSelectionMessage('')
