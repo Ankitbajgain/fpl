@@ -14,6 +14,13 @@ export function AccountSection({
   transferPolicy,
   transferPolicyLoading,
   transferPolicyError,
+  transferWindowStatus,
+  playerLeaderboard,
+  managerLeaderboard,
+  leaderboardLoading,
+  managerLeaderboardLoading,
+  leaderboardError,
+  managerLeaderboardError,
   applyLoading,
   applyMessage,
   onCaptainChange,
@@ -25,39 +32,37 @@ export function AccountSection({
   const [countdown, setCountdown] = useState('')
 
   useEffect(() => {
-    if (!transferMeta?.firstWindowCloseAt) {
-      setCountdown('')
+    if (!transferWindowStatus) { setCountdown(''); return }
+
+    const targetDate =
+      transferWindowStatus.status === 'WAITING'
+        ? transferWindowStatus.windowOpensAt
+        : transferWindowStatus.status === 'OPEN'
+          ? transferWindowStatus.windowClosesAt
+          : null
+
+    if (!targetDate) {
+      setCountdown(transferWindowStatus.status === 'LOCKED' ? 'LOCKED' : '')
       return
     }
 
-    const updateCountdown = () => {
-      const now = new Date()
-      const closeDate = new Date(transferMeta.firstWindowCloseAt)
-      const diffMs = closeDate - now
-
-      if (diffMs <= 0) {
-        setCountdown('EXPIRED')
+    const tick = () => {
+      const diff = new Date(targetDate).getTime() - Date.now()
+      if (diff <= 0) {
+        setCountdown(transferWindowStatus.status === 'WAITING' ? 'Opening...' : 'LOCKED')
         return
       }
-
-      const totalSeconds = Math.floor(diffMs / 1000)
-      const hours = Math.floor(totalSeconds / 3600)
-      const minutes = Math.floor((totalSeconds % 3600) / 60)
-      const seconds = totalSeconds % 60
-
-      if (hours > 0) {
-        setCountdown(`${hours}h ${minutes}m ${seconds}s`)
-      } else if (minutes > 0) {
-        setCountdown(`${minutes}m ${seconds}s`)
-      } else {
-        setCountdown(`${seconds}s`)
-      }
+      const totalSec = Math.floor(diff / 1000)
+      const h = Math.floor(totalSec / 3600)
+      const m = Math.floor((totalSec % 3600) / 60)
+      const s = totalSec % 60
+      setCountdown(h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`)
     }
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
+    tick()
+    const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [transferMeta?.firstWindowCloseAt])
+  }, [transferWindowStatus?.status, transferWindowStatus?.windowOpensAt, transferWindowStatus?.windowClosesAt])
 
   return (
     <div className="space-y-3 rounded-2xl border border-[#e8ddcb] bg-[#fff9f0] p-4">
@@ -121,7 +126,42 @@ export function AccountSection({
           {applyLoading ? 'Applying...' : 'Apply Transfers'}
         </button>
 
-        {transferMeta ? (
+        {transferWindowStatus ? (
+          (() => {
+            const isLocked = transferWindowStatus.status === 'LOCKED'
+            const isWaiting = transferWindowStatus.status === 'WAITING'
+            const isOpen = transferWindowStatus.status === 'OPEN'
+            const bgClass = isLocked
+              ? 'bg-[#f8d7da] text-[#721c24]'
+              : isWaiting
+                ? 'bg-[#fff3cd] text-[#856404]'
+                : isOpen
+                  ? 'bg-[#d4edda] text-[#155724]'
+                  : 'bg-[#e2e3e5] text-[#383d41]'
+            const statusLabel = isLocked ? 'LOCKED' : isWaiting ? 'WAITING' : isOpen ? 'OPEN' : 'UNKNOWN'
+            const deadlineDate = isWaiting
+              ? transferWindowStatus.windowOpensAt
+              : transferWindowStatus.windowClosesAt
+
+            return (
+              <div className={`mt-2 rounded-lg p-2 text-center text-xs font-semibold ${bgClass}`}>
+                <p>Transfer Window: {statusLabel}</p>
+                {countdown ? (
+                  <p className="mt-1 font-mono text-sm font-bold tracking-wider">{countdown}</p>
+                ) : null}
+                {isWaiting ? (
+                  <p className="mt-1 text-xs">Opens after previous match ends (+15 min cooldown)</p>
+                ) : null}
+                {deadlineDate ? (
+                  <p className="mt-1 text-xs">
+                    {isWaiting ? 'Opens' : 'Closes'}: {new Date(deadlineDate).toLocaleDateString()} at{' '}
+                    {new Date(deadlineDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })()
+        ) : transferMeta ? (
           <div
             className={`mt-2 rounded-lg p-2 text-center text-xs font-semibold ${
               transferMeta.locked
@@ -129,12 +169,7 @@ export function AccountSection({
                 : 'bg-[#d4edda] text-[#155724]'
             }`}
           >
-            <p>{transferMeta.locked ? '🔒 Transfer Window LOCKED' : '🔓 Transfer Window OPEN'}</p>
-            {countdown ? (
-              <p className="mt-1 font-mono text-sm font-bold tracking-wider">
-                ⏱️ {countdown}
-              </p>
-            ) : null}
+            <p>Transfer Window: {transferMeta.locked ? 'LOCKED' : 'OPEN'}</p>
             {transferMeta.firstWindowCloseAt ? (
               <p className="mt-1 text-xs">
                 Deadline: {new Date(transferMeta.firstWindowCloseAt).toLocaleDateString()} at{' '}
@@ -174,6 +209,48 @@ export function AccountSection({
             <p className="text-xs">Playoff Cap: {transferPolicy.playoffTransferCap}</p>
             <p className="text-xs">Qualifier 1 Match No: {transferPolicy.qualifier1MatchNumber}</p>
           </>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl bg-white p-3 text-sm text-[#243342]">
+        <p className="font-semibold">Player Leaderboard</p>
+        <p className="mt-1 text-xs text-[#6a7683]">Updates after each completed match finalization</p>
+        {leaderboardLoading ? <p className="mt-2 text-xs text-[#6a7683]">Loading leaderboard...</p> : null}
+        {leaderboardError ? <p className="mt-2 text-xs text-red-600">{leaderboardError}</p> : null}
+        {!leaderboardLoading && !leaderboardError && (!playerLeaderboard || playerLeaderboard.length === 0) ? (
+          <p className="mt-2 text-xs text-[#6a7683]">No finalized leaderboard data yet.</p>
+        ) : null}
+        {playerLeaderboard && playerLeaderboard.length > 0 ? (
+          <div className="mt-2 space-y-1">
+            {playerLeaderboard.slice(0, 10).map((row) => (
+              <div key={row.playerId} className="flex items-center justify-between rounded-md bg-[#f8f4ec] px-2 py-1">
+                <p className="text-xs font-medium">
+                  #{row.rank} {row.name} ({row.team})
+                </p>
+                <p className="text-xs font-semibold">{Number(row.totalPoints || 0).toFixed(2)} pts</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl bg-white p-3 text-sm text-[#243342]">
+        <p className="font-semibold">Manager Leaderboard</p>
+        <p className="mt-1 text-xs text-[#6a7683]">Cumulative points across finalized matches</p>
+        {managerLeaderboardLoading ? <p className="mt-2 text-xs text-[#6a7683]">Loading manager leaderboard...</p> : null}
+        {managerLeaderboardError ? <p className="mt-2 text-xs text-red-600">{managerLeaderboardError}</p> : null}
+        {!managerLeaderboardLoading && !managerLeaderboardError && (!managerLeaderboard || managerLeaderboard.length === 0) ? (
+          <p className="mt-2 text-xs text-[#6a7683]">No finalized manager leaderboard data yet.</p>
+        ) : null}
+        {managerLeaderboard && managerLeaderboard.length > 0 ? (
+          <div className="mt-2 space-y-1">
+            {managerLeaderboard.slice(0, 10).map((row) => (
+              <div key={row.userId} className="flex items-center justify-between rounded-md bg-[#f1f7ff] px-2 py-1">
+                <p className="text-xs font-medium">#{row.rank} {row.name}</p>
+                <p className="text-xs font-semibold">{Number(row.totalPoints || 0).toFixed(2)} pts</p>
+              </div>
+            ))}
+          </div>
         ) : null}
       </div>
 

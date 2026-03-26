@@ -17,4 +17,10 @@ router.post('/leagues/:leagueSeasonId/fixtures/sync', adminController.syncLeague
 router.get('/leagues/:leagueSeasonId/transfers/policy', adminController.getLeagueTransferPolicy);
 router.put('/leagues/:leagueSeasonId/transfers/policy', adminController.updateLeagueTransferPolicy);
 
+// Push player stats for a fixture (before or after COMPLETED)
+router.post('/leagues/:leagueSeasonId/fixtures/:fixtureId/stats', adminController.upsertMatchStats);
+
+// Finalize and persist fantasy points for all squads in a completed fixture
+router.post('/leagues/:leagueSeasonId/fixtures/:fixtureId/finalize-points', adminController.triggerFinalizePoints);
+
 module.exports = router;

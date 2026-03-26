@@ -19,6 +19,13 @@ export function Sidebar({
   transferPolicy,
   transferPolicyLoading,
   transferPolicyError,
+  transferWindowStatus,
+  playerLeaderboard,
+  managerLeaderboard,
+  leaderboardLoading,
+  managerLeaderboardLoading,
+  leaderboardError,
+  managerLeaderboardError,
   applyLoading,
   applyMessage,
   onModeChange,
@@ -50,6 +57,13 @@ export function Sidebar({
         transferPolicy={transferPolicy}
         transferPolicyLoading={transferPolicyLoading}
         transferPolicyError={transferPolicyError}
+        transferWindowStatus={transferWindowStatus}
+        playerLeaderboard={playerLeaderboard}
+        managerLeaderboard={managerLeaderboard}
+        leaderboardLoading={leaderboardLoading}
+        managerLeaderboardLoading={managerLeaderboardLoading}
+        leaderboardError={leaderboardError}
+        managerLeaderboardError={managerLeaderboardError}
         applyLoading={applyLoading}
         applyMessage={applyMessage}
         onCaptainChange={onCaptainChange}

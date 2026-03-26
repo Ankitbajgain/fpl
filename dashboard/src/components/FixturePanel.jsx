@@ -1,5 +1,32 @@
 import { useMemo, useState } from 'react'
 
+const MATCH_TYPES = ['T20', 'ODI', 'TEST', 'T10']
+
+const STATS_TEMPLATE = JSON.stringify([
+  {
+    playerId: 1,
+    is_playing_xi: true,
+    did_bat: true,
+    runs: 0,
+    fours: 0,
+    sixes: 0,
+    balls_faced: 0,
+    is_duck: false,
+    wickets: 0,
+    maidens: 0,
+    balls_bowled: 0,
+    runs_conceded: 0,
+    lbw_wickets: 0,
+    bowled_wickets: 0,
+    catches: 0,
+    stumpings: 0,
+    direct_hit_runouts: 0,
+    indirect_runout_throws: 0,
+    indirect_runout_catches: 0,
+    dropped_catches: 0,
+  },
+], null, 2)
+
 const initialCreate = {
   homeFranchiseId: '',
   awayFranchiseId: '',
@@ -8,12 +35,15 @@ const initialCreate = {
   tossAt: '',
   lockAt: '',
   status: 'SCHEDULED',
+  matchType: 'T20',
 }
 
-export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate, onDelete, busy }) {
+export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate, onDelete, onPushStats, onFinalizePoints, busy }) {
   const [createForm, setCreateForm] = useState(initialCreate)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [statsFixtureId, setStatsFixtureId] = useState(null)
+  const [statsText, setStatsText] = useState(STATS_TEMPLATE)
 
   const sortedFixtures = useMemo(
     () => [...fixtures].sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)),
@@ -30,7 +60,19 @@ export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate,
       tossAt: fixture.tossAt?.slice(0, 16) || '',
       lockAt: fixture.lockAt?.slice(0, 16) || '',
       status: fixture.status,
+      matchType: fixture.matchType || 'T20',
     })
+  }
+
+  const handleStatsSubmit = (fixtureId) => {
+    try {
+      const arr = JSON.parse(statsText)
+      onPushStats(fixtureId, arr)
+      setStatsFixtureId(null)
+      setStatsText(STATS_TEMPLATE)
+    } catch {
+      alert('Invalid JSON - fix the stats array and try again.')
+    }
   }
 
   return (
@@ -54,6 +96,9 @@ export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate,
             <option value="COMPLETED">COMPLETED</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
+          <select value={createForm.matchType} onChange={(e) => setCreateForm({ ...createForm, matchType: e.target.value })}>
+            {MATCH_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
           <input placeholder="Venue" value={createForm.venue} onChange={(e) => setCreateForm({ ...createForm, venue: e.target.value })} />
           <input type="datetime-local" value={createForm.startsAt} onChange={(e) => setCreateForm({ ...createForm, startsAt: e.target.value })} />
           <input type="datetime-local" value={createForm.tossAt} onChange={(e) => setCreateForm({ ...createForm, tossAt: e.target.value })} />
@@ -70,6 +115,7 @@ export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate,
               <div className="fixture-head">
                 <strong>#{fixture.id} {fixture.homeCode} vs {fixture.awayCode}</strong>
                 <span>{fixture.status}</span>
+                {fixture.matchType ? <span className="badge" style={{ background: '#e7f0ff', color: '#2c4ba0', marginLeft: 6 }}>{fixture.matchType}</span> : null}
               </div>
 
               {editing ? (
@@ -85,6 +131,9 @@ export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate,
                     <option value="LIVE">LIVE</option>
                     <option value="COMPLETED">COMPLETED</option>
                     <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                  <select value={editForm.matchType || 'T20'} onChange={(e) => setEditForm({ ...editForm, matchType: e.target.value })}>
+                    {MATCH_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <input value={editForm.venue || ''} onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })} />
                   <input type="datetime-local" value={editForm.startsAt || ''} onChange={(e) => setEditForm({ ...editForm, startsAt: e.target.value })} />
@@ -105,7 +154,42 @@ export default function FixturePanel({ fixtures, franchises, onCreate, onUpdate,
                   <button onClick={() => startEdit(fixture)} disabled={busy}>Edit</button>
                 )}
                 <button className="danger" onClick={() => onDelete(fixture.id)} disabled={busy}>Delete</button>
+                {fixture.status === 'COMPLETED' && onFinalizePoints ? (
+                  <button style={{ background: '#6f42c1', color: '#fff' }} onClick={() => onFinalizePoints(fixture.id)} disabled={busy}>
+                    Finalize Points
+                  </button>
+                ) : null}
+                {onPushStats ? (
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setStatsFixtureId(statsFixtureId === fixture.id ? null : fixture.id)
+                      setStatsText(STATS_TEMPLATE)
+                    }}
+                    disabled={busy}
+                  >
+                    {statsFixtureId === fixture.id ? 'Hide Stats' : 'Push Stats'}
+                  </button>
+                ) : null}
               </div>
+
+              {statsFixtureId === fixture.id ? (
+                <div style={{ marginTop: 8 }}>
+                  <p className="muted" style={{ marginBottom: 4 }}>
+                    Paste player stats JSON array. Edit player IDs and values accordingly.
+                  </p>
+                  <textarea
+                    rows={14}
+                    style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, padding: 8, boxSizing: 'border-box' }}
+                    value={statsText}
+                    onChange={(e) => setStatsText(e.target.value)}
+                  />
+                  <div className="row" style={{ marginTop: 6 }}>
+                    <button onClick={() => handleStatsSubmit(fixture.id)} disabled={busy}>Submit Stats</button>
+                    <button className="secondary" onClick={() => setStatsFixtureId(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )
         })}

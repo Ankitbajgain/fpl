@@ -5,6 +5,8 @@ import TransferPolicyPanel from './components/TransferPolicyPanel'
 import FixturePanel from './components/FixturePanel'
 import SyncPanel from './components/SyncPanel'
 import WindowBadge from './components/WindowBadge'
+import LeaderboardPanel from './components/LeaderboardPanel'
+import ManagerLeaderboardPanel from './components/ManagerLeaderboardPanel'
 
 const authHeaders = (token) => ({
   'Content-Type': 'application/json',
@@ -22,6 +24,12 @@ export default function App() {
   const [fixtures, setFixtures] = useState([])
   const [franchises, setFranchises] = useState([])
   const [policy, setPolicy] = useState(null)
+  const [leaderboardRows, setLeaderboardRows] = useState([])
+  const [managerLeaderboardRows, setManagerLeaderboardRows] = useState([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+  const [managerLeaderboardLoading, setManagerLeaderboardLoading] = useState(false)
+  const [leaderboardError, setLeaderboardError] = useState('')
+  const [managerLeaderboardError, setManagerLeaderboardError] = useState('')
 
   const [busyFixtures, setBusyFixtures] = useState(false)
   const [busyPolicy, setBusyPolicy] = useState(false)
@@ -83,6 +91,10 @@ export default function App() {
     setSelectedLeague('')
     setFixtures([])
     setPolicy(null)
+    setLeaderboardRows([])
+    setManagerLeaderboardRows([])
+    setLeaderboardError('')
+    setManagerLeaderboardError('')
   }
 
   const loadLeagues = async () => {
@@ -112,6 +124,27 @@ export default function App() {
     }
   }
 
+  const loadLeaderboard = async (leagueSeasonId) => {
+    if (!token || !leagueSeasonId) return
+    setLeaderboardLoading(true)
+    setManagerLeaderboardLoading(true)
+    setLeaderboardError('')
+    setManagerLeaderboardError('')
+    try {
+      const data = await fetchJson(`/api/v1/gameplay/leagues/${leagueSeasonId}/leaderboard?playersLimit=20&managersLimit=20`, {
+        headers: authHeaders(token),
+      })
+      setLeaderboardRows(Array.isArray(data?.players) ? data.players : [])
+      setManagerLeaderboardRows(Array.isArray(data?.managers) ? data.managers : [])
+    } catch (e) {
+      setLeaderboardError(e.message)
+      setManagerLeaderboardError(e.message)
+    } finally {
+      setLeaderboardLoading(false)
+      setManagerLeaderboardLoading(false)
+    }
+  }
+
   useEffect(() => {
     const restore = async () => {
       if (!token) return
@@ -132,6 +165,15 @@ export default function App() {
 
   useEffect(() => {
     if (selectedLeague && token) loadLeagueData(selectedLeague)
+  }, [selectedLeague, token])
+
+  useEffect(() => {
+    let intervalId
+    if (selectedLeague && token) {
+      loadLeaderboard(selectedLeague)
+      intervalId = setInterval(() => loadLeaderboard(selectedLeague), 20000)
+    }
+    return () => clearInterval(intervalId)
   }, [selectedLeague, token])
 
   const handleCreateFixture = async (form) => {
@@ -201,6 +243,39 @@ export default function App() {
     }
   }
 
+  const handlePushStats = async (fixtureId, statsArray) => {
+    setBusyFixtures(true)
+    try {
+      const data = await fetchJson(`/api/v1/admin/leagues/${selectedLeague}/fixtures/${fixtureId}/stats`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ stats: statsArray }),
+      })
+      notify(`Stats pushed: ${data.updated} player(s) updated`)
+    } catch (e) {
+      fail(e.message)
+    } finally {
+      setBusyFixtures(false)
+    }
+  }
+
+  const handleFinalizePoints = async (fixtureId) => {
+    setBusyFixtures(true)
+    try {
+      const data = await fetchJson(`/api/v1/admin/leagues/${selectedLeague}/fixtures/${fixtureId}/finalize-points`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      })
+      notify(`Points finalized: ${data.squadsProcessed} squad(s), ${data.playersProcessed} player(s)`)
+      await loadLeagueData(selectedLeague)
+      await loadLeaderboard(selectedLeague)
+    } catch (e) {
+      fail(e.message)
+    } finally {
+      setBusyFixtures(false)
+    }
+  }
+
   const handleSync = async (payload) => {
     setBusySync(true)
     try {
@@ -246,7 +321,9 @@ export default function App() {
       <section className="layout">
         <div className="left-col">
           <LeaguePicker leagues={leagues} selectedLeague={selectedLeague} onSelect={setSelectedLeague} />
-          <WindowBadge fixtures={fixtures} />
+          <WindowBadge leagueSeasonId={selectedLeague} token={token} />
+          <LeaderboardPanel rows={leaderboardRows} loading={leaderboardLoading} error={leaderboardError} />
+          <ManagerLeaderboardPanel rows={managerLeaderboardRows} loading={managerLeaderboardLoading} error={managerLeaderboardError} />
           <SyncPanel onSync={handleSync} busy={busySync} />
         </div>
 
@@ -259,6 +336,8 @@ export default function App() {
             onCreate={handleCreateFixture}
             onUpdate={handleUpdateFixture}
             onDelete={handleDeleteFixture}
+            onPushStats={handlePushStats}
+            onFinalizePoints={handleFinalizePoints}
             busy={busyFixtures}
           />
         </div>

@@ -41,6 +41,21 @@ router.post('/squad/validate', gameplayController.validateSquadSelection);
 // Calculate lock status and transfer penalty for a fixture window.
 router.post('/transfers/meta', gameplayController.getTransferMeta);
 
+// Transfer window status & countdown for a league
+router.get('/leagues/:leagueSeasonId/transfer-window', gameplayController.getTransferWindowStatus);
+
+// Player leaderboard for a league season (updates after fixture finalization)
+router.get('/leagues/:leagueSeasonId/leaderboard/players', gameplayController.getPlayerLeaderboard);
+
+// Manager leaderboard for a league season (cumulative across finalized matches)
+router.get('/leagues/:leagueSeasonId/leaderboard/managers', gameplayController.getManagerLeaderboard);
+
+// Combined leaderboard payload (players + managers in one call)
+router.get('/leagues/:leagueSeasonId/leaderboard', gameplayController.getCombinedLeaderboard);
+
+// Finalize points for a completed fixture (admin only)
+router.post('/fixtures/:fixtureId/finalize-points', restrictTo('admin'), gameplayController.finalizeMatchPoints);
+
 // Calculate fantasy points for a single player's live match stats.
 router.post('/points/player', gameplayController.getLivePointsForPlayer);
 

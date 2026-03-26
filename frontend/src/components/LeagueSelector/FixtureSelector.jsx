@@ -97,17 +97,24 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
                   {startTime.toLocaleDateString()} at {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  isUpcoming
-                    ? 'bg-[#d4edda] text-[#155724]'
-                    : fixture.status === 'LIVE'
-                      ? 'bg-[#f8d7da] text-[#721c24]'
-                      : 'bg-[#e2e3e5] text-[#383d41]'
-                }`}
-              >
-                {fixture.status}
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    isUpcoming
+                      ? 'bg-[#d4edda] text-[#155724]'
+                      : fixture.status === 'LIVE'
+                        ? 'bg-[#f8d7da] text-[#721c24]'
+                        : 'bg-[#e2e3e5] text-[#383d41]'
+                  }`}
+                >
+                  {fixture.status}
+                </span>
+                {fixture.matchType ? (
+                  <span className="rounded-full bg-[#e7f0ff] px-2 py-0.5 text-xs font-semibold text-[#2c4ba0]">
+                    {fixture.matchType}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </button>
         )

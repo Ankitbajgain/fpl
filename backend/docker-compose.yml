@@ -9,6 +9,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      RATE_LIMIT_DISABLE: 1
       PORT: 5000
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306

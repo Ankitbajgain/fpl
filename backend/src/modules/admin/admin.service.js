@@ -27,10 +27,13 @@ const listLeagueFixturesAdmin = async (leagueSeasonId) => {
       f.home_franchise_id,
       f.away_franchise_id,
       f.venue,
+      f.match_type,
       f.starts_at,
       f.toss_at,
       f.lock_at,
       f.status,
+      f.ended_at,
+      f.transfer_window_opens_at,
       COALESCE(lfh.team_code, fh.short_name) AS home_code,
       COALESCE(lfa.team_code, fa.short_name) AS away_code,
       COALESCE(lfh.display_name, fh.name) AS home_name,
@@ -55,10 +58,13 @@ const listLeagueFixturesAdmin = async (leagueSeasonId) => {
     homeName: row.home_name,
     awayName: row.away_name,
     venue: row.venue,
+    matchType: row.match_type || 'T20',
     startsAt: row.starts_at,
     tossAt: row.toss_at,
     lockAt: row.lock_at,
     status: row.status,
+    endedAt: row.ended_at || null,
+    transferWindowOpensAt: row.transfer_window_opens_at || null,
   }));
 };
 
@@ -106,11 +112,17 @@ const createFixture = async ({
   homeFranchiseId,
   awayFranchiseId,
   venue,
+  matchType = 'T20',
   startsAt,
   tossAt,
   lockAt,
   status = 'SCHEDULED',
 }) => {
+  const validMatchTypes = ['T20', 'ODI', 'TEST', 'T10'];
+  const safeMatchType = validMatchTypes.includes(String(matchType).toUpperCase())
+    ? String(matchType).toUpperCase()
+    : 'T20';
+
   const { startsAtDate, tossAtDate, lockAtDate } = await validateFixturePayload({
     leagueSeasonId,
     homeFranchiseId,
@@ -126,16 +138,18 @@ const createFixture = async ({
       home_franchise_id,
       away_franchise_id,
       venue,
+      match_type,
       starts_at,
       toss_at,
       lock_at,
       status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       leagueSeasonId,
       Number(homeFranchiseId),
       Number(awayFranchiseId),
       venue || null,
+      safeMatchType,
       startsAtDate,
       tossAtDate,
       lockAtDate,
@@ -153,18 +167,24 @@ const updateFixture = async ({
   homeFranchiseId,
   awayFranchiseId,
   venue,
+  matchType,
   startsAt,
   tossAt,
   lockAt,
   status,
 }) => {
   const [existingRows] = await pool.query(
-    'SELECT id, league_season_id, home_franchise_id, away_franchise_id, starts_at, toss_at, lock_at, venue, status FROM fixtures WHERE id = ? AND league_season_id = ? LIMIT 1',
+    'SELECT id, league_season_id, home_franchise_id, away_franchise_id, starts_at, toss_at, lock_at, venue, match_type, status FROM fixtures WHERE id = ? AND league_season_id = ? LIMIT 1',
     [fixtureId, leagueSeasonId]
   );
 
   if (!existingRows.length) throw new AppError('Fixture not found for this league', 404);
   const existing = existingRows[0];
+
+  const validMatchTypes = ['T20', 'ODI', 'TEST', 'T10'];
+  const safeMatchType = matchType && validMatchTypes.includes(String(matchType).toUpperCase())
+    ? String(matchType).toUpperCase()
+    : existing.match_type || 'T20';
 
   const nextPayload = {
     homeFranchiseId: homeFranchiseId ? Number(homeFranchiseId) : Number(existing.home_franchise_id),
@@ -179,11 +199,14 @@ const updateFixture = async ({
     ...nextPayload,
   });
 
+  const nextStatus = status || existing.status;
+
   await pool.query(
     `UPDATE fixtures
      SET home_franchise_id = ?,
          away_franchise_id = ?,
          venue = ?,
+         match_type = ?,
          starts_at = ?,
          toss_at = ?,
          lock_at = ?,
@@ -193,14 +216,43 @@ const updateFixture = async ({
       nextPayload.homeFranchiseId,
       nextPayload.awayFranchiseId,
       venue ?? existing.venue,
+      safeMatchType,
       startsAtDate,
       tossAtDate,
       lockAtDate,
-      status || existing.status,
+      nextStatus,
       Number(fixtureId),
       leagueSeasonId,
     ]
   );
+
+  // When a match is marked COMPLETED:
+  //  1. Record ended_at (now if not supplied)
+  //  2. Open the transfer window for the next scheduled fixture
+  //     (transfer_window_opens_at = ended_at + 15 minutes)
+  if (nextStatus === 'COMPLETED' && existing.status !== 'COMPLETED') {
+    const endedAt = new Date();
+    await pool.query(
+      `UPDATE fixtures SET ended_at = ? WHERE id = ?`,
+      [endedAt, Number(fixtureId)]
+    );
+
+    const [nextFixRows] = await pool.query(
+      `SELECT id FROM fixtures
+       WHERE league_season_id = ? AND status = 'SCHEDULED'
+       ORDER BY starts_at ASC, id ASC
+       LIMIT 1`,
+      [leagueSeasonId]
+    );
+
+    if (nextFixRows.length) {
+      const windowOpensAt = new Date(endedAt.getTime() + 15 * 60 * 1000);
+      await pool.query(
+        `UPDATE fixtures SET transfer_window_opens_at = ? WHERE id = ?`,
+        [windowOpensAt, Number(nextFixRows[0].id)]
+      );
+    }
+  }
 
   const fixtures = await listLeagueFixturesAdmin(leagueSeasonId);
   return fixtures.find((fixture) => fixture.id === Number(fixtureId)) || null;
@@ -324,6 +376,117 @@ const syncFixtures = async ({ leagueSeasonId, source = 'demo', fixtures = [], ap
   };
 };
 
+/**
+ * Bulk-upsert player match stats for a fixture.
+ * Admin can push stats before or after marking the fixture COMPLETED.
+ * Points are NOT calculated here – call finalizeMatchPoints separately.
+ *
+ * @param {number|string} fixtureId
+ * @param {Array}         statsArray  – array of stat objects (see player_live_stats schema)
+ */
+const upsertPlayerMatchStats = async (fixtureId, statsArray) => {
+  if (!Array.isArray(statsArray) || !statsArray.length) {
+    throw new AppError('statsArray must be a non-empty array', 400);
+  }
+
+  const [fixRows] = await pool.query(
+    'SELECT id FROM fixtures WHERE id = ? LIMIT 1',
+    [Number(fixtureId)]
+  );
+  if (!fixRows.length) throw new AppError('Fixture not found', 404);
+
+  const results = [];
+
+  for (const stat of statsArray) {
+    const playerId = Number(stat.playerId || stat.player_id);
+    if (!playerId) continue;
+
+    const [playerRows] = await pool.query(
+      'SELECT id, franchise_id FROM players WHERE id = ? LIMIT 1',
+      [playerId]
+    );
+    if (!playerRows.length) continue;
+
+    const franchiseId = Number(playerRows[0].franchise_id);
+
+    // Auto-derive haul flags and economy from supplied data
+    const wickets      = Number(stat.wickets       || 0);
+    const ballsBowled  = Number(stat.balls_bowled  || 0);
+    const runsConceded = Number(stat.runs_conceded || 0);
+    const economy = ballsBowled > 0
+      ? Number(((runsConceded / ballsBowled) * 6).toFixed(2))
+      : Number(stat.economy_rate || 0);
+
+    await pool.query(
+      `INSERT INTO player_live_stats (
+         fixture_id, player_id, franchise_id,
+         runs, fours, sixes, balls_faced,
+         is_duck, did_bat, is_playing_xi,
+         wickets, maidens, economy_rate, balls_bowled, runs_conceded,
+         lbw_wickets, bowled_wickets,
+         three_wicket_haul, four_wicket_haul, five_wicket_haul,
+         catches, stumpings, direct_hit_runouts,
+         indirect_runout_throws, indirect_runout_catches,
+         dropped_catches
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         runs                   = VALUES(runs),
+         fours                  = VALUES(fours),
+         sixes                  = VALUES(sixes),
+         balls_faced            = VALUES(balls_faced),
+         is_duck                = VALUES(is_duck),
+         did_bat                = VALUES(did_bat),
+         is_playing_xi          = VALUES(is_playing_xi),
+         wickets                = VALUES(wickets),
+         maidens                = VALUES(maidens),
+         economy_rate           = VALUES(economy_rate),
+         balls_bowled           = VALUES(balls_bowled),
+         runs_conceded          = VALUES(runs_conceded),
+         lbw_wickets            = VALUES(lbw_wickets),
+         bowled_wickets         = VALUES(bowled_wickets),
+         three_wicket_haul      = VALUES(three_wicket_haul),
+         four_wicket_haul       = VALUES(four_wicket_haul),
+         five_wicket_haul       = VALUES(five_wicket_haul),
+         catches                = VALUES(catches),
+         stumpings              = VALUES(stumpings),
+         direct_hit_runouts     = VALUES(direct_hit_runouts),
+         indirect_runout_throws  = VALUES(indirect_runout_throws),
+         indirect_runout_catches = VALUES(indirect_runout_catches),
+         dropped_catches        = VALUES(dropped_catches)`,
+      [
+        Number(fixtureId), playerId, franchiseId,
+        Number(stat.runs        || 0),
+        Number(stat.fours       || 0),
+        Number(stat.sixes       || 0),
+        Number(stat.balls_faced || 0),
+        stat.is_duck       ? 1 : 0,
+        stat.did_bat       ? 1 : 0,
+        stat.is_playing_xi ? 1 : 0,
+        wickets,
+        Number(stat.maidens || 0),
+        economy,
+        ballsBowled,
+        runsConceded,
+        Number(stat.lbw_wickets  || 0),
+        Number(stat.bowled_wickets || 0),
+        wickets >= 3 ? 1 : 0,
+        wickets >= 4 ? 1 : 0,
+        wickets >= 5 ? 1 : 0,
+        Number(stat.catches              || 0),
+        Number(stat.stumpings            || 0),
+        Number(stat.direct_hit_runouts   || 0),
+        Number(stat.indirect_runout_throws  || 0),
+        Number(stat.indirect_runout_catches || 0),
+        Number(stat.dropped_catches      || 0),
+      ]
+    );
+
+    results.push({ playerId, status: 'upserted' });
+  }
+
+  return { fixtureId: Number(fixtureId), updated: results.length, players: results };
+};
+
 module.exports = {
   listLeagueFranchises,
   listLeagueFixturesAdmin,
@@ -331,4 +494,5 @@ module.exports = {
   updateFixture,
   deleteFixture,
   syncFixtures,
+  upsertPlayerMatchStats,
 };

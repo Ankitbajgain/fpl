@@ -74,6 +74,13 @@ function App() {
   const [transferPolicy, setTransferPolicy] = useState(null)
   const [transferPolicyLoading, setTransferPolicyLoading] = useState(false)
   const [transferPolicyError, setTransferPolicyError] = useState('')
+  const [transferWindowStatus, setTransferWindowStatus] = useState(null)
+  const [playerLeaderboard, setPlayerLeaderboard] = useState([])
+  const [managerLeaderboard, setManagerLeaderboard] = useState([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+  const [managerLeaderboardLoading, setManagerLeaderboardLoading] = useState(false)
+  const [leaderboardError, setLeaderboardError] = useState('')
+  const [managerLeaderboardError, setManagerLeaderboardError] = useState('')
   const [captainId, setCaptainId] = useState(selectedIds[0] ?? '')
   const [viceCaptainId, setViceCaptainId] = useState(selectedIds[1] ?? '')
   const [authNotice, setAuthNotice] = useState('')
@@ -138,6 +145,11 @@ function App() {
     setTransferPolicy(null)
     setTransferPolicyError('')
     setApplyMessage('')
+    setTransferWindowStatus(null)
+    setPlayerLeaderboard([])
+    setManagerLeaderboard([])
+    setLeaderboardError('')
+    setManagerLeaderboardError('')
   }, [selectedLeagueSeason])
 
   useEffect(() => {
@@ -168,6 +180,71 @@ function App() {
     }
 
     fetchTransferPolicy()
+  }, [authToken, selectedLeagueSeason])
+
+  // Poll real-time transfer window status every 10 s
+  useEffect(() => {
+    let intervalId
+    const fetchWindowStatus = async () => {
+      if (!authToken || !selectedLeagueSeason) return
+      try {
+        const response = await fetch(
+          `/api/v1/gameplay/leagues/${selectedLeagueSeason}/transfer-window`,
+          { headers: { Authorization: `Bearer ${authToken}` } },
+        )
+        const payload = await response.json()
+        if (response.ok && payload.success) setTransferWindowStatus(payload.data)
+      } catch { /* silent */ }
+    }
+    if (authToken && selectedLeagueSeason) {
+      fetchWindowStatus()
+      intervalId = setInterval(fetchWindowStatus, 10000)
+    }
+    return () => clearInterval(intervalId)
+  }, [authToken, selectedLeagueSeason])
+
+  // Poll combined leaderboard every 20 s
+  useEffect(() => {
+    let intervalId
+
+    const fetchLeaderboard = async () => {
+      if (!authToken || !selectedLeagueSeason) return
+
+      setLeaderboardLoading(true)
+      setManagerLeaderboardLoading(true)
+      setLeaderboardError('')
+      setManagerLeaderboardError('')
+      try {
+        const response = await fetch(
+          `/api/v1/gameplay/leagues/${selectedLeagueSeason}/leaderboard?playersLimit=10&managersLimit=10`,
+          { headers: { Authorization: `Bearer ${authToken}` } },
+        )
+        const payload = await response.json()
+        if (!response.ok || !payload.success) {
+          setLeaderboardError(payload.message || 'Unable to load leaderboard')
+          setManagerLeaderboardError(payload.message || 'Unable to load manager leaderboard')
+          setLeaderboardLoading(false)
+          setManagerLeaderboardLoading(false)
+          return
+        }
+        setPlayerLeaderboard(Array.isArray(payload.data?.players) ? payload.data.players : [])
+        setManagerLeaderboard(Array.isArray(payload.data?.managers) ? payload.data.managers : [])
+        setLeaderboardLoading(false)
+        setManagerLeaderboardLoading(false)
+      } catch {
+        setLeaderboardError('Network error while loading leaderboard')
+        setManagerLeaderboardError('Network error while loading manager leaderboard')
+        setLeaderboardLoading(false)
+        setManagerLeaderboardLoading(false)
+      }
+    }
+
+    if (authToken && selectedLeagueSeason) {
+      fetchLeaderboard()
+      intervalId = setInterval(fetchLeaderboard, 20000)
+    }
+
+    return () => clearInterval(intervalId)
   }, [authToken, selectedLeagueSeason])
 
   useEffect(() => {
@@ -581,6 +658,13 @@ function App() {
             transferPolicy={transferPolicy}
             transferPolicyLoading={transferPolicyLoading}
             transferPolicyError={transferPolicyError}
+            transferWindowStatus={transferWindowStatus}
+            playerLeaderboard={playerLeaderboard}
+            managerLeaderboard={managerLeaderboard}
+            leaderboardLoading={leaderboardLoading}
+            managerLeaderboardLoading={managerLeaderboardLoading}
+            leaderboardError={leaderboardError}
+            managerLeaderboardError={managerLeaderboardError}
             applyLoading={applyLoading}
             applyMessage={applyMessage}
             onModeChange={(newMode) => dispatch(setMode(newMode))}
@@ -605,7 +689,11 @@ function App() {
             playersLoading={playersLoading}
             playersError={playersError}
             selectionMessage={selectionMessage}
-            transferWindowLocked={transferMeta?.locked || false}
+            transferWindowLocked={
+              transferWindowStatus
+                ? !transferWindowStatus.windowOpen
+                : transferMeta?.locked || false
+            }
             onTabChange={(tab) => {
               setActiveRoleTab(tab)
               setSelectionMessage('')

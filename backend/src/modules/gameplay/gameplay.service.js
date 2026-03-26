@@ -582,10 +582,348 @@ const applySquadTransfers = async ({
   }
 };
 
-const calculateLivePointsForPlayer = ({ stats, teamWon, isAway, isCaptain, isViceCaptain, booster }) => {
-  const basePoints = calculateCricketFantasyPoints({ stats, teamWon, isAway });
+const calculateLivePointsForPlayer = ({ stats, matchType = 'T20', isCaptain, isViceCaptain, booster }) => {
+  const basePoints = calculateCricketFantasyPoints({ stats, matchType });
   const boostedPoints = applyBooster({ basePoints, isCaptain, isViceCaptain, booster });
   return { basePoints, boostedPoints };
+};
+
+// ─── Transfer Window Status ──────────────────────────────────────────────────
+
+const _fmtCountdown = (seconds) => {
+  if (seconds === null || seconds <= 0) return '0s';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+};
+
+const _resolveLeagueSeasonId = async (leagueSeasonIdentifier) => {
+  const raw = String(leagueSeasonIdentifier || '').trim();
+  if (!raw) throw new AppError('leagueSeasonId is required', 400);
+
+  const numericId = Number(raw);
+  if (Number.isInteger(numericId) && numericId > 0) {
+    const [rowsByNumeric] = await pool.query(
+      `SELECT id FROM league_seasons WHERE id = ? LIMIT 1`,
+      [String(numericId)]
+    );
+    if (rowsByNumeric.length) return String(rowsByNumeric[0].id);
+  }
+
+  // Accept season_name (e.g. "IPL 2025") and competition-year key (e.g. "IPL_2025").
+  const [rows] = await pool.query(
+    `SELECT ls.id
+     FROM league_seasons ls
+     JOIN competitions c ON c.id = ls.competition_id
+     WHERE ls.season_name = ?
+        OR REPLACE(CONCAT(c.short_name, '_', ls.year), ' ', '') = REPLACE(?, ' ', '')
+     ORDER BY ls.id DESC
+     LIMIT 1`,
+    [raw, raw]
+  );
+
+  if (!rows.length) {
+    throw new AppError(`League season not found for identifier: ${raw}`, 404);
+  }
+  return String(rows[0].id);
+};
+
+/**
+ * Returns the live transfer-window status for a league:
+ * – WAITING  : previous match ended but the 15-min cooldown has not elapsed yet
+ * – OPEN     : window is open (after cooldown and before lock_at)
+ * – LOCKED   : lock_at of the next fixture has been reached
+ * – NO_UPCOMING_FIXTURE : no scheduled/live fixture found
+ */
+const getTransferWindowStatus = async (leagueSeasonId) => {
+  const now = new Date();
+
+  const [fixtureRows] = await pool.query(
+    `SELECT id, starts_at, toss_at, lock_at, status, transfer_window_opens_at
+     FROM fixtures
+     WHERE league_season_id = ?
+       AND status IN ('SCHEDULED','LIVE')
+     ORDER BY starts_at ASC
+     LIMIT 1`,
+    [leagueSeasonId]
+  );
+
+  if (!fixtureRows.length) {
+    return {
+      leagueSeasonId: String(leagueSeasonId),
+      status: 'NO_UPCOMING_FIXTURE',
+      windowOpen: false,
+      nextFixtureId: null,
+      windowOpensAt: null,
+      windowClosesAt: null,
+      secondsToOpen: null,
+      secondsToClose: null,
+      countdownLabel: 'No upcoming fixture',
+    };
+  }
+
+  const fixture = fixtureRows[0];
+  const lockAt = new Date(fixture.lock_at);
+  const windowOpensAt = fixture.transfer_window_opens_at
+    ? new Date(fixture.transfer_window_opens_at)
+    : null; // null → always open from creation (first fixture)
+
+  const alreadyLocked  = now >= lockAt;
+  const windowStarted  = !windowOpensAt || now >= windowOpensAt;
+  const windowOpen     = windowStarted && !alreadyLocked;
+
+  const secondsToOpen  = windowOpensAt && !windowStarted
+    ? Math.ceil((windowOpensAt.getTime() - now.getTime()) / 1000)
+    : null;
+
+  const secondsToClose = !alreadyLocked
+    ? Math.ceil((lockAt.getTime() - now.getTime()) / 1000)
+    : 0;
+
+  let windowStatus;
+  if (alreadyLocked)       windowStatus = 'LOCKED';
+  else if (windowOpen)     windowStatus = 'OPEN';
+  else                     windowStatus = 'WAITING';
+
+  let countdownLabel;
+  if (alreadyLocked)       countdownLabel = 'Transfer window is locked';
+  else if (windowOpen)     countdownLabel = `Window closes in ${_fmtCountdown(secondsToClose)}`;
+  else                     countdownLabel = `Window opens in ${_fmtCountdown(secondsToOpen)}`;
+
+  return {
+    leagueSeasonId: String(leagueSeasonId),
+    status: windowStatus,
+    windowOpen,
+    nextFixtureId: Number(fixture.id),
+    windowOpensAt: windowOpensAt?.toISOString() ?? null,
+    windowClosesAt: lockAt.toISOString(),
+    secondsToOpen,
+    secondsToClose,
+    countdownLabel,
+  };
+};
+
+// ─── Leaderboard ─────────────────────────────────────────────────────────────
+
+const getPlayerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}) => {
+  const leagueSeasonId = await _resolveLeagueSeasonId(leagueSeasonIdentifier);
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+
+  const [rows] = await pool.query(
+    `SELECT
+        p.id AS player_id,
+        p.full_name,
+        p.role,
+        COALESCE(lf.team_code, fr.short_name) AS team_code,
+        COUNT(DISTINCT pls.fixture_id) AS matches,
+        ROUND(SUM(pls.fantasy_points), 2) AS total_points,
+        ROUND(AVG(pls.fantasy_points), 2) AS avg_points
+     FROM player_live_stats pls
+     JOIN fixtures f ON f.id = pls.fixture_id
+     JOIN players p ON p.id = pls.player_id
+     LEFT JOIN league_season_players lsp
+       ON lsp.player_id = p.id
+      AND lsp.league_season_id = ?
+      AND lsp.is_active = 1
+     LEFT JOIN league_franchises lf ON lf.id = lsp.league_franchise_id
+     LEFT JOIN franchises fr ON fr.id = p.franchise_id
+     WHERE f.league_season_id = ?
+       AND f.status = 'COMPLETED'
+       AND f.points_finalized_at IS NOT NULL
+     GROUP BY p.id, p.full_name, p.role, team_code
+     ORDER BY total_points DESC, avg_points DESC, p.full_name ASC
+     LIMIT ?`,
+    [leagueSeasonId, leagueSeasonId, safeLimit]
+  );
+
+  let previousPoints = null;
+  let previousRank = 0;
+  return rows.map((row, index) => {
+    const points = Number(row.total_points || 0);
+    const rank = points === previousPoints ? previousRank : index + 1;
+    previousPoints = points;
+    previousRank = rank;
+
+    return {
+      rank,
+      playerId: Number(row.player_id),
+      name: row.full_name,
+      role: row.role,
+      team: row.team_code,
+      matches: Number(row.matches || 0),
+      totalPoints: points,
+      avgPoints: Number(row.avg_points || 0),
+    };
+  });
+};
+
+const getManagerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}) => {
+  const leagueSeasonId = await _resolveLeagueSeasonId(leagueSeasonIdentifier);
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+
+  const [rows] = await pool.query(
+    `SELECT
+        u.id AS user_id,
+        u.name,
+        u.email,
+        COUNT(DISTINCT ms.fixture_id) AS matches,
+        ROUND(SUM(ms.points_total), 2) AS total_points,
+        ROUND(AVG(ms.points_total), 2) AS avg_points,
+        ROUND(MAX(ms.points_total), 2) AS best_match_points
+     FROM manager_squads ms
+     JOIN fixtures f ON f.id = ms.fixture_id
+     JOIN users u ON u.id = ms.user_id
+     WHERE f.league_season_id = ?
+       AND f.status = 'COMPLETED'
+       AND f.points_finalized_at IS NOT NULL
+     GROUP BY u.id, u.name, u.email
+     ORDER BY total_points DESC, matches DESC, u.name ASC
+     LIMIT ?`,
+    [leagueSeasonId, safeLimit]
+  );
+
+  let previousPoints = null;
+  let previousRank = 0;
+  return rows.map((row, index) => {
+    const points = Number(row.total_points || 0);
+    const rank = points === previousPoints ? previousRank : index + 1;
+    previousPoints = points;
+    previousRank = rank;
+
+    return {
+      rank,
+      userId: Number(row.user_id),
+      name: row.name,
+      email: row.email,
+      matches: Number(row.matches || 0),
+      totalPoints: points,
+      avgPoints: Number(row.avg_points || 0),
+      bestMatchPoints: Number(row.best_match_points || 0),
+    };
+  });
+};
+
+const getCombinedLeaderboard = async (leagueSeasonIdentifier, { playersLimit = 100, managersLimit = 100 } = {}) => {
+  const [players, managers] = await Promise.all([
+    getPlayerLeaderboard(leagueSeasonIdentifier, { limit: playersLimit }),
+    getManagerLeaderboard(leagueSeasonIdentifier, { limit: managersLimit }),
+  ]);
+
+  return {
+    players,
+    managers,
+    generatedAt: new Date().toISOString(),
+  };
+};
+
+// ─── Points Finalization ─────────────────────────────────────────────────────
+
+/**
+ * Calculate and persist fantasy points for all players + squads of a fixture.
+ * Fixture must have status = 'COMPLETED'.
+ * Captain gets 2× (or 3× with TRIPLE_CAPTAIN booster), VC gets 1.5×.
+ */
+const finalizeMatchPoints = async (fixtureId) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Validate fixture
+    const [fixtureRows] = await conn.query(
+      `SELECT id, league_season_id, match_type, status FROM fixtures WHERE id = ? LIMIT 1`,
+      [Number(fixtureId)]
+    );
+    if (!fixtureRows.length) throw new AppError('Fixture not found', 404);
+    const fixture = fixtureRows[0];
+    if (fixture.status !== 'COMPLETED') {
+      throw new AppError('Cannot finalize points: fixture is not COMPLETED', 400);
+    }
+
+    // 2. Compute base fantasy points per player
+    const [statsRows] = await conn.query(
+      `SELECT * FROM player_live_stats WHERE fixture_id = ?`,
+      [Number(fixtureId)]
+    );
+
+    const playerPointsMap = {};
+    for (const row of statsRows) {
+      const pts = calculateCricketFantasyPoints({
+        stats: row,
+        matchType: fixture.match_type || 'T20',
+      });
+      playerPointsMap[Number(row.player_id)] = pts;
+      await conn.query(
+        `UPDATE player_live_stats SET fantasy_points = ? WHERE fixture_id = ? AND player_id = ?`,
+        [pts, Number(fixtureId), Number(row.player_id)]
+      );
+    }
+
+    // 3. Apply captain / VC multiplier per squad and sum squad totals
+    const [squadRows] = await conn.query(
+      `SELECT id, captain_player_id, vice_captain_player_id, booster
+       FROM manager_squads
+       WHERE fixture_id = ?`,
+      [Number(fixtureId)]
+    );
+
+    for (const squad of squadRows) {
+      const [squadPlayers] = await conn.query(
+        `SELECT player_id FROM manager_squad_players WHERE squad_id = ? AND is_starting_xi = 1`,
+        [squad.id]
+      );
+
+      let squadTotal = 0;
+      for (const sp of squadPlayers) {
+        const playerId   = Number(sp.player_id);
+        const basePoints = playerPointsMap[playerId] ?? 0;
+        const isCaptain  = playerId === Number(squad.captain_player_id);
+        const isViceCap  = playerId === Number(squad.vice_captain_player_id);
+
+        const playerPoints = applyBooster({
+          basePoints,
+          isCaptain,
+          isViceCaptain: isViceCap,
+          booster: squad.booster,
+        });
+
+        await conn.query(
+          `UPDATE manager_squad_players SET fantasy_points = ? WHERE squad_id = ? AND player_id = ?`,
+          [Number(playerPoints.toFixed(2)), squad.id, playerId]
+        );
+
+        squadTotal += playerPoints;
+      }
+
+      await conn.query(
+        `UPDATE manager_squads SET points_total = ? WHERE id = ?`,
+        [Number(squadTotal.toFixed(2)), squad.id]
+      );
+    }
+
+    const finalizedAt = new Date();
+    await conn.query(
+      `UPDATE fixtures SET points_finalized_at = ? WHERE id = ?`,
+      [finalizedAt, Number(fixtureId)]
+    );
+
+    await conn.commit();
+    return {
+      fixtureId:        Number(fixtureId),
+      leagueSeasonId:   String(fixture.league_season_id),
+      matchType:        fixture.match_type,
+      playersProcessed: statsRows.length,
+      squadsProcessed:  squadRows.length,
+      pointsFinalizedAt: finalizedAt.toISOString(),
+    };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 };
 
 const predictionPoints = ({ predicted, actual }) => {
@@ -613,6 +951,11 @@ module.exports = {
   applySquadTransfers,
   calculateTransferMeta,
   calculateLivePointsForPlayer,
+  getTransferWindowStatus,
+  getPlayerLeaderboard,
+  getManagerLeaderboard,
+  getCombinedLeaderboard,
+  finalizeMatchPoints,
   predictionPoints,
   quizPoints,
 };

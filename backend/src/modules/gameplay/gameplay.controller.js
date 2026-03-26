@@ -155,8 +155,45 @@ const getTransferMeta = catchAsync(async (req, res) => {
 });
 
 const getLivePointsForPlayer = catchAsync(async (req, res) => {
-  const result = gameplayService.calculateLivePointsForPlayer(req.body);
+  const result = gameplayService.calculateLivePointsForPlayer({
+    ...req.body,
+    matchType: req.body.matchType || 'T20',
+  });
   sendSuccess(res, 200, 'Player points calculated', result);
+});
+
+const getTransferWindowStatus = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const result = await gameplayService.getTransferWindowStatus(leagueSeasonId);
+  sendSuccess(res, 200, 'Transfer window status', result);
+});
+
+const finalizeMatchPoints = catchAsync(async (req, res) => {
+  const { fixtureId } = req.params;
+  const result = await gameplayService.finalizeMatchPoints(Number(fixtureId));
+  sendSuccess(res, 200, 'Match points finalized', result);
+});
+
+const getPlayerLeaderboard = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const limit = req.query.limit ? Number(req.query.limit) : 100;
+  const result = await gameplayService.getPlayerLeaderboard(leagueSeasonId, { limit });
+  sendSuccess(res, 200, 'Player leaderboard fetched', result);
+});
+
+const getManagerLeaderboard = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const limit = req.query.limit ? Number(req.query.limit) : 100;
+  const result = await gameplayService.getManagerLeaderboard(leagueSeasonId, { limit });
+  sendSuccess(res, 200, 'Manager leaderboard fetched', result);
+});
+
+const getCombinedLeaderboard = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const playersLimit = req.query.playersLimit ? Number(req.query.playersLimit) : 100;
+  const managersLimit = req.query.managersLimit ? Number(req.query.managersLimit) : 100;
+  const result = await gameplayService.getCombinedLeaderboard(leagueSeasonId, { playersLimit, managersLimit });
+  sendSuccess(res, 200, 'Combined leaderboard fetched', result);
 });
 
 const getPredictionPoints = catchAsync(async (req, res) => {
@@ -177,6 +214,11 @@ module.exports = {
   getLeagueTransferPolicy,
   updateLeagueTransferPolicy,
   applySquadTransfers,
+  getTransferWindowStatus,
+  finalizeMatchPoints,
+  getPlayerLeaderboard,
+  getManagerLeaderboard,
+  getCombinedLeaderboard,
   // Legacy
   getActivePlayers,
   validateSquadSelection,

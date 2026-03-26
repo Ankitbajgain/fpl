@@ -1,5 +1,7 @@
 const catchAsync = require('../../utils/catchAsync');
 const { sendSuccess } = require('../../utils/apiResponse');
+const AppError = require('../../utils/AppError');
+const { pool } = require('../../config/mysql');
 const adminService = require('./admin.service');
 const gameplayService = require('../gameplay/gameplay.service');
 
@@ -57,6 +59,26 @@ const getLeagueTransferPolicy = catchAsync(async (req, res) => {
   sendSuccess(res, 200, 'League transfer policy fetched', data);
 });
 
+const upsertMatchStats = catchAsync(async (req, res) => {
+  const { leagueSeasonId, fixtureId } = req.params;
+  // Verify fixture belongs to this league
+  const [fixRows] = await pool.query(
+    'SELECT id FROM fixtures WHERE id = ? AND league_season_id = ? LIMIT 1',
+    [Number(fixtureId), leagueSeasonId]
+  );
+  if (!fixRows.length) {
+    throw new AppError('Fixture not found for this league', 404);
+  }
+  const data = await adminService.upsertPlayerMatchStats(Number(fixtureId), req.body.stats || []);
+  sendSuccess(res, 200, 'Match stats upserted', data);
+});
+
+const triggerFinalizePoints = catchAsync(async (req, res) => {
+  const { fixtureId } = req.params;
+  const data = await gameplayService.finalizeMatchPoints(Number(fixtureId));
+  sendSuccess(res, 200, 'Match points finalized', data);
+});
+
 const updateLeagueTransferPolicy = catchAsync(async (req, res) => {
   const { leagueSeasonId } = req.params;
   const data = await gameplayService.upsertLeagueTransferPolicy({
@@ -81,4 +103,6 @@ module.exports = {
   syncLeagueFixtures,
   getLeagueTransferPolicy,
   updateLeagueTransferPolicy,
+  upsertMatchStats,
+  triggerFinalizePoints,
 };
