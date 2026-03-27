@@ -22,9 +22,11 @@ export function FixtureSelector({ selectedFixture, onSelectFixture }) {
         const payload = await response.json()
         if (payload.success && Array.isArray(payload.data)) {
           setFixtures(payload.data)
-          // Auto-select first fixture if none selected
+          // Auto-select upcoming fixture (lock not passed) if none selected.
           if (!selectedFixture && payload.data.length > 0) {
-            onSelectFixture(payload.data[0])
+            const now = new Date()
+            const upcomingFixture = payload.data.find((item) => new Date(item.lockAt || item.startsAt) > now)
+            onSelectFixture(upcomingFixture || payload.data[0])
           }
         } else {
           setFixtures([])

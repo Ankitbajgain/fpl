@@ -19,6 +19,7 @@ import { LeagueSelector } from './components/LeagueSelector/LeagueSelector'
 import { LeagueHeader } from './components/LeagueSelector/LeagueHeader'
 import { FixtureSelector } from './components/LeagueSelector/FixtureSelector'
 import { PrivateLeaguePanel } from './components/LeagueSelector/PrivateLeaguePanel'
+import { FavoriteBonusPanel } from './components/LeagueSelector/FavoriteBonusPanel'
 import {
   getHomeCountry,
   getUniqueTeams,
@@ -634,6 +635,10 @@ function App() {
   if (!selectedFixture) {
     return (
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
+        <FavoriteBonusPanel
+          authToken={authToken}
+          selectedLeagueSeason={selectedLeagueSeason}
+        />
         <PrivateLeaguePanel
           authToken={authToken}
           selectedLeagueSeason={selectedLeagueSeason}
@@ -650,6 +655,13 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <LeagueHeader />
         <Header selectedCount={selectedIds.length} creditsUsed={creditsUsed} creditsLeft={creditsLeft} />
+
+        <section className="mt-6">
+          <FavoriteBonusPanel
+            authToken={authToken}
+            selectedLeagueSeason={selectedLeagueSeason}
+          />
+        </section>
 
         <section className="mt-6">
           <PrivateLeaguePanel

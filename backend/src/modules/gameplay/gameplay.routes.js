@@ -19,6 +19,10 @@ router.get('/leagues/:leagueSeasonId/fixtures', gameplayController.getLeagueFixt
 // Fetch players for a specific league season (replaces generic /players for multi-league)
 router.get('/leagues/:leagueSeasonId/players', gameplayController.getPlayersForLeague);
 
+// Manager bonus preference: select one favorite nation and one favorite franchise for this league.
+router.get('/leagues/:leagueSeasonId/favorites', gameplayController.getFavoriteBonusPreferences);
+router.put('/leagues/:leagueSeasonId/favorites', gameplayController.updateFavoriteBonusPreferences);
+
 // Apply/snapshot squad transfers for a fixture (auto-defers to next fixture if current is already started).
 router.post('/leagues/:leagueSeasonId/fixtures/:fixtureId/squad/apply', gameplayController.applySquadTransfers);
 

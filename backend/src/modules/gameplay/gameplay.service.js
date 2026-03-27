@@ -9,6 +9,13 @@ const {
   calculateCricketFantasyPoints,
 } = require('./gameplay.rules');
 
+const FAVORITE_NATION_MULTIPLIER = 1.2;
+const FAVORITE_FRANCHISE_MULTIPLIER = 1.5;
+const TOURNAMENT_TRANSFER_CAP = 160;
+const TOURNAMENT_TRANSFER_CAP_MATCH = 70;
+
+const normalizeText = (value) => String(value || '').trim().toLowerCase();
+
 const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
   if (!playerIds.length) return [];
   const placeholders = playerIds.map(() => '?').join(',');
@@ -340,6 +347,239 @@ const upsertLeagueTransferPolicy = async ({
   return getLeagueTransferPolicy(leagueSeasonId);
 };
 
+const getFavoritePreferenceLockInfo = async ({ userId, leagueSeasonId, executor = pool }) => {
+  const [firstFixtureRows] = await executor.query(
+    `SELECT id, starts_at
+     FROM fixtures
+     WHERE league_season_id = ?
+     ORDER BY starts_at ASC, id ASC
+     LIMIT 1`,
+    [leagueSeasonId]
+  );
+
+  const firstFixture = firstFixtureRows[0] || null;
+  const firstMatchStartsAt = firstFixture?.starts_at ? new Date(firstFixture.starts_at) : null;
+  const globalLock = Boolean(firstMatchStartsAt && new Date() >= firstMatchStartsAt);
+
+  if (!globalLock || !userId) {
+    return {
+      firstFixtureId: firstFixture ? Number(firstFixture.id) : null,
+      firstMatchStartsAt: firstFixture?.starts_at || null,
+      isLocked: globalLock,
+    };
+  }
+
+  const [existingRows] = await executor.query(
+    `SELECT 1
+     FROM manager_squads
+     WHERE user_id = ? AND league_season_id = ?
+     LIMIT 1`,
+    [Number(userId), leagueSeasonId]
+  );
+
+  const isExistingManagerInLeague = existingRows.length > 0;
+
+  if (isExistingManagerInLeague) {
+    return {
+      firstFixtureId: firstFixture ? Number(firstFixture.id) : null,
+      firstMatchStartsAt: firstFixture?.starts_at || null,
+      isLocked: true,
+    };
+  }
+
+  const [upcomingRows] = await executor.query(
+    `SELECT id, starts_at
+     FROM fixtures
+     WHERE league_season_id = ?
+       AND lock_at > NOW()
+     ORDER BY starts_at ASC, id ASC
+     LIMIT 1`,
+    [leagueSeasonId]
+  );
+
+  const upcomingFixture = upcomingRows[0] || null;
+  const upcomingStartsAt = upcomingFixture?.starts_at ? new Date(upcomingFixture.starts_at) : null;
+  const setupLocked = Boolean(!upcomingStartsAt || new Date() >= upcomingStartsAt);
+
+  return {
+    firstFixtureId: upcomingFixture ? Number(upcomingFixture.id) : null,
+    firstMatchStartsAt: upcomingFixture?.starts_at || null,
+    isLocked: setupLocked,
+  };
+};
+
+const getFavoriteBonusPreferences = async (userId, leagueSeasonId) => {
+  const [nationRows, franchiseRows] = await Promise.all([
+    pool.query(
+      `SELECT n.id, n.name, n.iso_code
+       FROM nations n
+       ORDER BY n.name ASC`,
+      []
+    ),
+    pool.query(
+      `SELECT lf.id, lf.team_code, COALESCE(lf.display_name, f.name) AS name
+       FROM league_franchises lf
+       JOIN franchises f ON f.id = lf.franchise_id
+       WHERE lf.league_season_id = ?
+         AND lf.is_active = 1
+       ORDER BY lf.team_code ASC`,
+      [leagueSeasonId]
+    ),
+  ]);
+
+  const lockInfo = await getFavoritePreferenceLockInfo({ userId, leagueSeasonId });
+
+  let selected = {
+    favoriteNationId: null,
+    favoriteNation: null,
+    favoriteLeagueFranchiseId: null,
+    favoriteFranchiseCode: null,
+    favoriteFranchiseName: null,
+  };
+
+  try {
+    const [selectedRows] = await pool.query(
+      `SELECT
+          mbp.favorite_nation_id,
+          mbp.favorite_league_franchise_id,
+          n.name AS favorite_nation,
+          lf.team_code AS favorite_franchise_code,
+          COALESCE(lf.display_name, f.name) AS favorite_franchise_name
+       FROM manager_bonus_preferences mbp
+       LEFT JOIN nations n ON n.id = mbp.favorite_nation_id
+       LEFT JOIN league_franchises lf ON lf.id = mbp.favorite_league_franchise_id
+       LEFT JOIN franchises f ON f.id = lf.franchise_id
+       WHERE mbp.user_id = ? AND mbp.league_season_id = ?
+       LIMIT 1`,
+      [Number(userId), leagueSeasonId]
+    );
+
+    if (selectedRows.length) {
+      const row = selectedRows[0];
+      selected = {
+        favoriteNationId: row.favorite_nation_id ? Number(row.favorite_nation_id) : null,
+        favoriteNation: row.favorite_nation || null,
+        favoriteLeagueFranchiseId: row.favorite_league_franchise_id ? Number(row.favorite_league_franchise_id) : null,
+        favoriteFranchiseCode: row.favorite_franchise_code || null,
+        favoriteFranchiseName: row.favorite_franchise_name || null,
+      };
+    }
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
+  const nations = nationRows[0].map((row) => ({
+    id: Number(row.id),
+    name: row.name,
+    isoCode: row.iso_code,
+  }));
+
+  const franchises = franchiseRows[0].map((row) => ({
+    id: Number(row.id),
+    teamCode: row.team_code,
+    name: row.name,
+  }));
+
+  return {
+    leagueSeasonId,
+    locked: lockInfo.isLocked,
+    firstFixtureId: lockInfo.firstFixtureId,
+    firstMatchStartsAt: lockInfo.firstMatchStartsAt,
+    multipliers: {
+      favoriteNation: FAVORITE_NATION_MULTIPLIER,
+      favoriteFranchise: FAVORITE_FRANCHISE_MULTIPLIER,
+    },
+    selected,
+    options: {
+      nations,
+      franchises,
+    },
+  };
+};
+
+const upsertFavoriteBonusPreferences = async ({
+  userId,
+  leagueSeasonId,
+  favoriteNationId = null,
+  favoriteLeagueFranchiseId = null,
+}) => {
+  if (!userId) throw new AppError('User not found in request', 401);
+  if (!leagueSeasonId) throw new AppError('leagueSeasonId is required', 400);
+
+  const nationId = favoriteNationId ? Number(favoriteNationId) : null;
+  const franchiseId = favoriteLeagueFranchiseId ? Number(favoriteLeagueFranchiseId) : null;
+
+  if (nationId !== null) {
+    const [rows] = await pool.query('SELECT id FROM nations WHERE id = ? LIMIT 1', [nationId]);
+    if (!rows.length) throw new AppError('Favorite nation is invalid', 400);
+  }
+
+  if (franchiseId !== null) {
+    const [rows] = await pool.query(
+      `SELECT id
+       FROM league_franchises
+       WHERE id = ? AND league_season_id = ?
+       LIMIT 1`,
+      [franchiseId, leagueSeasonId]
+    );
+    if (!rows.length) throw new AppError('Favorite franchise must belong to selected league', 400);
+  }
+
+  const lockInfo = await getFavoritePreferenceLockInfo({ userId, leagueSeasonId });
+
+  let existingRow = null;
+  try {
+    const [rows] = await pool.query(
+      `SELECT favorite_nation_id, favorite_league_franchise_id
+       FROM manager_bonus_preferences
+       WHERE user_id = ? AND league_season_id = ?
+       LIMIT 1`,
+      [Number(userId), leagueSeasonId]
+    );
+    existingRow = rows[0] || null;
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
+  if (lockInfo.isLocked) {
+    const existingNationId = existingRow?.favorite_nation_id ? Number(existingRow.favorite_nation_id) : null;
+    const existingFranchiseId = existingRow?.favorite_league_franchise_id
+      ? Number(existingRow.favorite_league_franchise_id)
+      : null;
+    const nationChanged = existingNationId !== nationId;
+    const franchiseChanged = existingFranchiseId !== franchiseId;
+
+    if (nationChanged || franchiseChanged) {
+      throw new AppError('Favorite nation and franchise are locked after your setup window closes', 400);
+    }
+
+    return getFavoriteBonusPreferences(userId, leagueSeasonId);
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO manager_bonus_preferences (
+         user_id,
+         league_season_id,
+         favorite_nation_id,
+         favorite_league_franchise_id
+       ) VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         favorite_nation_id = VALUES(favorite_nation_id),
+         favorite_league_franchise_id = VALUES(favorite_league_franchise_id),
+         updated_at = CURRENT_TIMESTAMP`,
+      [Number(userId), leagueSeasonId, nationId, franchiseId]
+    );
+  } catch (error) {
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      throw new AppError('Favorite bonus preferences table not found. Run database/schema.sql first', 400);
+    }
+    throw error;
+  }
+
+  return getFavoriteBonusPreferences(userId, leagueSeasonId);
+};
+
 const getFirstFixtureForLeague = async (leagueSeasonId) => {
   const [rows] = await pool.query(
     `SELECT id, starts_at, toss_at, lock_at, status
@@ -351,6 +591,32 @@ const getFirstFixtureForLeague = async (leagueSeasonId) => {
   );
 
   return rows[0] || null;
+};
+
+const getUpcomingFixtureForLeague = async (leagueSeasonId, executor = pool) => {
+  const [rows] = await executor.query(
+    `SELECT id, starts_at, toss_at, lock_at, status
+     FROM fixtures
+     WHERE league_season_id = ?
+       AND lock_at > NOW()
+     ORDER BY starts_at ASC, id ASC
+     LIMIT 1`,
+    [leagueSeasonId]
+  );
+
+  return rows[0] || null;
+};
+
+const hasExistingSquadInLeague = async ({ userId, leagueSeasonId, executor = pool }) => {
+  const [rows] = await executor.query(
+    `SELECT 1
+     FROM manager_squads
+     WHERE user_id = ? AND league_season_id = ?
+     LIMIT 1`,
+    [Number(userId), leagueSeasonId]
+  );
+
+  return rows.length > 0;
 };
 
 const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStartAt, tossAt, leagueSeasonId, userId }) => {
@@ -372,20 +638,22 @@ const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStar
     [leagueSeasonId]
   );
 
-  const totalFixtures = fixtureRows.length;
-  const firstFixture = fixtureRows[0] || null;
   const now = new Date();
-  const firstFixtureStartAt = firstFixture?.starts_at ? new Date(firstFixture.starts_at) : null;
-  const firstWindowCloseAt = firstFixtureStartAt
-    ? new Date(firstFixtureStartAt.getTime() - 15 * 60 * 1000)
+  const totalFixtures = fixtureRows.length;
+  const upcomingFixture = fixtureRows.find((row) => new Date(row.starts_at) > now) || null;
+  const upcomingMatchNo = upcomingFixture ? Number(upcomingFixture.match_no || 0) : 0;
+  const upcomingFixtureStartAt = upcomingFixture?.starts_at ? new Date(upcomingFixture.starts_at) : null;
+  const upcomingWindowCloseAt = upcomingFixtureStartAt
+    ? new Date(upcomingFixtureStartAt.getTime() - 15 * 60 * 1000)
     : null;
 
-  const match1WindowOpen = Boolean(firstWindowCloseAt && now < firstWindowCloseAt);
+  const isPreLockWindowOpen = Boolean(upcomingWindowCloseAt && now < upcomingWindowCloseAt);
+  const effectiveCapMatchNo = Math.min(policy.leagueStageMatchCount || TOURNAMENT_TRANSFER_CAP_MATCH, TOURNAMENT_TRANSFER_CAP_MATCH);
 
   const [usageRows] = await pool.query(
     `SELECT
-      COALESCE(SUM(CASE WHEN nf.match_no BETWEEN 1 AND ? THEN ms.transfers_used ELSE 0 END), 0) AS league_stage_used,
-      COALESCE(SUM(CASE WHEN nf.match_no > ? THEN ms.transfers_used ELSE 0 END), 0) AS playoff_used
+      COALESCE(SUM(CASE WHEN nf.match_no BETWEEN 1 AND ? THEN ms.transfers_used ELSE 0 END), 0) AS capped_used,
+      COALESCE(SUM(CASE WHEN nf.match_no > ? THEN ms.transfers_used ELSE 0 END), 0) AS post_cap_used
      FROM manager_squads ms
      JOIN (
        SELECT id, ROW_NUMBER() OVER (ORDER BY starts_at ASC, id ASC) AS match_no
@@ -393,33 +661,33 @@ const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStar
        WHERE league_season_id = ?
      ) nf ON nf.id = ms.fixture_id
      WHERE ms.user_id = ?`,
-    [policy.leagueStageMatchCount, policy.qualifier1MatchNumber, leagueSeasonId, userId]
+    [effectiveCapMatchNo, effectiveCapMatchNo, leagueSeasonId, userId]
   );
 
-  const leagueStageUsed = Number(usageRows[0]?.league_stage_used || 0);
-  const playoffUsed = Number(usageRows[0]?.playoff_used || 0);
+  const cappedUsed = Number(usageRows[0]?.capped_used || 0);
+  const postCapUsed = Number(usageRows[0]?.post_cap_used || 0);
+  const transferCap = upcomingMatchNo > 0 && upcomingMatchNo <= effectiveCapMatchNo ? TOURNAMENT_TRANSFER_CAP : 0;
+  const transfersRemaining = Math.max(0, transferCap - cappedUsed);
 
-  const stage = match1WindowOpen ? 'PRE_MATCH_1_WINDOW' : 'POST_MATCH_1_LOCKED';
-  const unlimited = match1WindowOpen;
-  const transferCap = match1WindowOpen ? null : 0;
-  const transfersRemaining = match1WindowOpen ? null : 0;
+  const stage = upcomingMatchNo > effectiveCapMatchNo ? 'POST_MATCH_70' : 'UPCOMING_MATCH_WINDOW';
+  const unlimited = false;
 
   return {
-    locked: !match1WindowOpen,
+    locked: !isPreLockWindowOpen,
     penalty,
     stage,
-    upcomingMatchNo: firstFixture ? 1 : 0,
+    upcomingMatchNo,
     totalFixtures,
     unlimited,
     transferCap,
     transfersRemaining,
     lockMinutesBeforeMatch: 15,
-    firstFixtureId: firstFixture ? Number(firstFixture.id) : null,
-    firstFixtureStartAt: firstFixture?.starts_at || null,
-    firstWindowCloseAt: firstWindowCloseAt || null,
+    firstFixtureId: upcomingFixture ? Number(upcomingFixture.id) : null,
+    firstFixtureStartAt: upcomingFixture?.starts_at || null,
+    firstWindowCloseAt: upcomingWindowCloseAt || null,
     usage: {
-      leagueStageUsed,
-      playoffUsed,
+      cappedUsed,
+      postCapUsed,
     },
     policy,
   };
@@ -442,31 +710,30 @@ const applySquadTransfers = async ({
 
   await validateSquadSelection({ playerIds, captainId, viceCaptainId, budgetCap, leagueSeasonId });
 
-  const requestedFixture = await getFirstFixtureForLeague(leagueSeasonId);
-  if (!requestedFixture) {
-    throw new AppError('No fixture found for this league', 404);
+  const upcomingFixture = await getUpcomingFixtureForLeague(leagueSeasonId);
+  if (!upcomingFixture) {
+    throw new AppError('No upcoming fixture found for this league', 404);
   }
 
-  const requestedIsMatch1 = Number(requestedFixtureId) === Number(requestedFixture.id);
+  const isExistingManager = await hasExistingSquadInLeague({ userId, leagueSeasonId });
 
+  const effectiveFixture = upcomingFixture;
   const meta = await calculateTransferMeta({
     usedTransfers: 0,
     freeTransfers: 0,
-    fixtureStartAt: requestedFixture.starts_at,
-    tossAt: requestedFixture.toss_at,
+    fixtureStartAt: upcomingFixture.starts_at,
+    tossAt: upcomingFixture.toss_at,
     leagueSeasonId,
     userId,
   });
 
   if (meta.locked) {
-    throw new AppError('Transfers are locked. Only Match 1 window is open until 15 minutes before start.', 400);
+    throw new AppError('Transfers are locked for the upcoming match (window closes 15 minutes before start).', 400);
   }
 
-  if (!requestedIsMatch1) {
-    throw new AppError(`Transfers can only be applied to Match 1 (fixture ${requestedFixture.id})`, 400);
+  if (Number(requestedFixtureId) !== Number(upcomingFixture.id)) {
+    throw new AppError(`Transfers can only be applied to upcoming fixture ${upcomingFixture.id}`, 400);
   }
-
-  const effectiveFixture = requestedFixture;
 
   const conn = await pool.getConnection();
   try {
@@ -501,6 +768,13 @@ const applySquadTransfers = async ({
       for (const id of nextIdSet) {
         if (!prevIdSet.has(id)) transferDelta += 1;
       }
+    }
+
+    if (meta.transferCap !== null && transferDelta > Number(meta.transfersRemaining || 0)) {
+      throw new AppError(
+        `Transfer limit exceeded. Remaining transfers until Match ${TOURNAMENT_TRANSFER_CAP_MATCH}: ${Number(meta.transfersRemaining || 0)}`,
+        400
+      );
     }
 
     const selectedPlayers = await getPlayersByIds(playerIds, leagueSeasonId);
@@ -572,14 +846,15 @@ const applySquadTransfers = async ({
 
     return {
       appliedToFixtureId: Number(effectiveFixture.id),
-      requestedFixtureId: Number(requestedFixture.id),
+      requestedFixtureId: Number(requestedFixtureId),
       deferredToNextFixture: false,
       transferDelta,
       transfersUsed,
       totalSpent: Number(totalSpent.toFixed(1)),
       stage: meta.stage,
       unlimited: meta.unlimited,
-      transfersRemainingAfterApply: meta.unlimited ? null : Math.max(0, Number(meta.transfersRemaining || 0) - transferDelta),
+      isNewManagerSetup: !isExistingManager,
+      transfersRemainingAfterApply: Math.max(0, Number(meta.transfersRemaining || 0) - transferDelta),
       overallLeagueJoined: overallLeagueResult.joined,
       overallLeague: overallLeagueResult.league,
     };
@@ -834,6 +1109,7 @@ const getCombinedLeaderboard = async (leagueSeasonIdentifier, { playersLimit = 1
  * Calculate and persist fantasy points for all players + squads of a fixture.
  * Fixture must have status = 'COMPLETED'.
  * Captain gets 2× (or 3× with TRIPLE_CAPTAIN booster), VC gets 1.5×.
+ * Favorite nation players get 1.2× and favorite franchise players get 1.5×.
  */
 const finalizeMatchPoints = async (fixtureId) => {
   const conn = await pool.getConnection();
@@ -872,31 +1148,105 @@ const finalizeMatchPoints = async (fixtureId) => {
 
     // 3. Apply captain / VC multiplier per squad and sum squad totals
     const [squadRows] = await conn.query(
-      `SELECT id, captain_player_id, vice_captain_player_id, booster
+      `SELECT id, user_id, league_season_id, captain_player_id, vice_captain_player_id, booster
        FROM manager_squads
        WHERE fixture_id = ?`,
       [Number(fixtureId)]
     );
 
+    const squadUserIds = Array.from(new Set(squadRows.map((row) => Number(row.user_id))));
+    const favoriteByUser = new Map();
+
+    if (squadUserIds.length) {
+      try {
+        const placeholders = squadUserIds.map(() => '?').join(',');
+        const [favoriteRows] = await conn.query(
+          `SELECT
+              mbp.user_id,
+              mbp.favorite_league_franchise_id,
+              n.name AS favorite_nation,
+              lf.team_code AS favorite_team_code
+           FROM manager_bonus_preferences mbp
+           LEFT JOIN nations n ON n.id = mbp.favorite_nation_id
+           LEFT JOIN league_franchises lf ON lf.id = mbp.favorite_league_franchise_id
+           WHERE mbp.league_season_id = ?
+             AND mbp.user_id IN (${placeholders})`,
+          [fixture.league_season_id, ...squadUserIds]
+        );
+
+        for (const row of favoriteRows) {
+          favoriteByUser.set(Number(row.user_id), {
+            favoriteNation: row.favorite_nation || null,
+            favoriteLeagueFranchiseId: row.favorite_league_franchise_id
+              ? Number(row.favorite_league_franchise_id)
+              : null,
+            favoriteTeamCode: row.favorite_team_code || null,
+          });
+        }
+      } catch (error) {
+        if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+      }
+    }
+
     for (const squad of squadRows) {
       const [squadPlayers] = await conn.query(
-        `SELECT player_id FROM manager_squad_players WHERE squad_id = ? AND is_starting_xi = 1`,
-        [squad.id]
+        `SELECT
+            msp.player_id,
+            COALESCE(n.name, 'Unknown') AS country,
+            COALESCE(lf.team_code, f.short_name) AS team_code,
+            COALESCE(lsp.league_franchise_id, p.franchise_id) AS league_franchise_id
+         FROM manager_squad_players msp
+         JOIN players p ON p.id = msp.player_id
+         LEFT JOIN player_nationalities pn ON pn.player_id = p.id
+         LEFT JOIN nations n ON n.id = pn.nation_id
+         LEFT JOIN league_season_players lsp
+           ON lsp.player_id = p.id
+          AND lsp.league_season_id = ?
+          AND lsp.is_active = 1
+         LEFT JOIN league_franchises lf ON lf.id = lsp.league_franchise_id
+         LEFT JOIN franchises f ON f.id = p.franchise_id
+         WHERE msp.squad_id = ? AND msp.is_starting_xi = 1`,
+        [squad.league_season_id || fixture.league_season_id, squad.id]
       );
 
       let squadTotal = 0;
+      const favoritePreference = favoriteByUser.get(Number(squad.user_id)) || null;
+
       for (const sp of squadPlayers) {
         const playerId   = Number(sp.player_id);
         const basePoints = playerPointsMap[playerId] ?? 0;
         const isCaptain  = playerId === Number(squad.captain_player_id);
         const isViceCap  = playerId === Number(squad.vice_captain_player_id);
 
-        const playerPoints = applyBooster({
+        let playerPoints = applyBooster({
           basePoints,
           isCaptain,
           isViceCaptain: isViceCap,
           booster: squad.booster,
         });
+
+        if (favoritePreference) {
+          const nationMatched =
+            favoritePreference.favoriteNation
+            && normalizeText(sp.country) === normalizeText(favoritePreference.favoriteNation);
+
+          const franchiseMatchedById =
+            favoritePreference.favoriteLeagueFranchiseId
+            && Number(sp.league_franchise_id) === Number(favoritePreference.favoriteLeagueFranchiseId);
+
+          const franchiseMatchedByCode =
+            !franchiseMatchedById
+            && favoritePreference.favoriteTeamCode
+            && normalizeText(sp.team_code) === normalizeText(favoritePreference.favoriteTeamCode);
+
+          if (nationMatched) {
+            playerPoints *= FAVORITE_NATION_MULTIPLIER;
+          }
+
+          if (franchiseMatchedById || franchiseMatchedByCode) {
+            playerPoints *= FAVORITE_FRANCHISE_MULTIPLIER;
+          }
+        }
 
         await conn.query(
           `UPDATE manager_squad_players SET fantasy_points = ? WHERE squad_id = ? AND player_id = ?`,
@@ -926,6 +1276,10 @@ const finalizeMatchPoints = async (fixtureId) => {
       playersProcessed: statsRows.length,
       squadsProcessed:  squadRows.length,
       pointsFinalizedAt: finalizedAt.toISOString(),
+      multipliersApplied: {
+        favoriteNation: FAVORITE_NATION_MULTIPLIER,
+        favoriteFranchise: FAVORITE_FRANCHISE_MULTIPLIER,
+      },
     };
   } catch (err) {
     await conn.rollback();
@@ -956,6 +1310,8 @@ module.exports = {
   listPlayersForLeague,
   getLeagueTransferPolicy,
   upsertLeagueTransferPolicy,
+  getFavoriteBonusPreferences,
+  upsertFavoriteBonusPreferences,
   validateSquadSelection,
   applySquadTransfers,
   calculateTransferMeta,

@@ -94,6 +94,23 @@ const getPlayersForLeague = catchAsync(async (req, res) => {
   sendSuccess(res, 200, 'League players fetched', players);
 });
 
+const getFavoriteBonusPreferences = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const result = await gameplayService.getFavoriteBonusPreferences(req.user?.id, leagueSeasonId);
+  sendSuccess(res, 200, 'Favorite bonus preferences fetched', result);
+});
+
+const updateFavoriteBonusPreferences = catchAsync(async (req, res) => {
+  const { leagueSeasonId } = req.params;
+  const result = await gameplayService.upsertFavoriteBonusPreferences({
+    userId: req.user?.id,
+    leagueSeasonId,
+    favoriteNationId: req.body.favoriteNationId,
+    favoriteLeagueFranchiseId: req.body.favoriteLeagueFranchiseId,
+  });
+  sendSuccess(res, 200, 'Favorite bonus preferences updated', result);
+});
+
 const applySquadTransfers = catchAsync(async (req, res) => {
   const { leagueSeasonId, fixtureId } = req.params;
   const result = await gameplayService.applySquadTransfers({
@@ -211,6 +228,8 @@ module.exports = {
   getLeagues,
   getLeagueFixtures,
   getPlayersForLeague,
+  getFavoriteBonusPreferences,
+  updateFavoriteBonusPreferences,
   getLeagueTransferPolicy,
   updateLeagueTransferPolicy,
   applySquadTransfers,

@@ -242,6 +242,20 @@ CREATE TABLE private_league_members (
   CONSTRAINT fk_league_members_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+CREATE TABLE manager_bonus_preferences (
+  user_id BIGINT UNSIGNED NOT NULL,
+  league_season_id VARCHAR(50) NOT NULL,
+  favorite_nation_id BIGINT UNSIGNED NULL,
+  favorite_league_franchise_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, league_season_id),
+  CONSTRAINT fk_bonus_pref_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_bonus_pref_league FOREIGN KEY (league_season_id) REFERENCES league_seasons(id) ON DELETE CASCADE,
+  CONSTRAINT fk_bonus_pref_nation FOREIGN KEY (favorite_nation_id) REFERENCES nations(id),
+  CONSTRAINT fk_bonus_pref_franchise FOREIGN KEY (favorite_league_franchise_id) REFERENCES league_franchises(id)
+);
+
 CREATE TABLE h2h_fixtures (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   fixture_id BIGINT UNSIGNED NOT NULL,
