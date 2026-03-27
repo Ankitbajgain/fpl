@@ -98,38 +98,27 @@ For a clean local dataset, run SQL in this order.
 
 ```bash
 cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/demo-seed.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-real-multi-league.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/create-transfer-policy.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/cleanup-duplicate-players.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/backfill-player-nationalities.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
-### Required migrations for points + leaderboards
+`database/schema.sql` is now the single canonical database script. It contains the base schema, all migrations, the demo seed flow, leaderboard seed data, and the transfer-window test updates.
 
-Use compatibility migration if your MySQL version rejects `ADD COLUMN IF NOT EXISTS` syntax.
+### Included leaderboard setup
+
+The consolidated script already includes the compatibility migration and the newer points-transfer-window/finalization migrations.
 
 ```bash
 cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/add-leaderboard-columns-compatible.sql
-```
-
-Alternative migrations (newer MySQL variants):
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/add-points-transfer-window.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/add-leaderboard-finalization.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
 ### Optional realistic leaderboard data
 
-Use these to quickly get populated leaderboards:
+This is also included in the consolidated script:
 
 ```bash
 cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-psl-leaderboard-compatible.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-psl-manager-leaderboard.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
 ## Demo Accounts
@@ -217,10 +206,10 @@ docker compose -f backend/docker-compose.yml up -d --build app
 
 ### `Unknown column 'pls.fantasy_points'`
 
-- Apply leaderboard compatibility migration:
+- Re-run the consolidated database script:
 
 ```bash
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < backend/database/add-leaderboard-columns-compatible.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < backend/database/schema.sql
 ```
 
 ### Leaderboard shows no rows

@@ -18,6 +18,7 @@ import { PlayerPool } from './components/PlayerPool/PlayerPool'
 import { LeagueSelector } from './components/LeagueSelector/LeagueSelector'
 import { LeagueHeader } from './components/LeagueSelector/LeagueHeader'
 import { FixtureSelector } from './components/LeagueSelector/FixtureSelector'
+import { PrivateLeaguePanel } from './components/LeagueSelector/PrivateLeaguePanel'
 import {
   getHomeCountry,
   getUniqueTeams,
@@ -631,7 +632,16 @@ function App() {
 
   // Render: Fixture selector (after league selected, before squad builder)
   if (!selectedFixture) {
-    return <FixtureSelector selectedFixture={selectedFixture} onSelectFixture={setSelectedFixture} />
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
+        <PrivateLeaguePanel
+          authToken={authToken}
+          selectedLeagueSeason={selectedLeagueSeason}
+          currentUser={currentUser}
+        />
+        <FixtureSelector selectedFixture={selectedFixture} onSelectFixture={setSelectedFixture} />
+      </div>
+    )
   }
 
   // Render: Authenticated
@@ -640,6 +650,14 @@ function App() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <LeagueHeader />
         <Header selectedCount={selectedIds.length} creditsUsed={creditsUsed} creditsLeft={creditsLeft} />
+
+        <section className="mt-6">
+          <PrivateLeaguePanel
+            authToken={authToken}
+            selectedLeagueSeason={selectedLeagueSeason}
+            currentUser={currentUser}
+          />
+        </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
           <Sidebar

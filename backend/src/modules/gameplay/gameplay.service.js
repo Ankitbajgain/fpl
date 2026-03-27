@@ -1,5 +1,6 @@
 const { pool } = require('../../config/mysql');
 const AppError = require('../../utils/AppError');
+const { ensureUserInOverallLeague } = require('../privateLeagues/privateLeagues.service');
 const {
   validateSquad,
   isSquadLocked,
@@ -331,7 +332,7 @@ const upsertLeagueTransferPolicy = async ({
     );
   } catch (error) {
     if (error.code === 'ER_NO_SUCH_TABLE') {
-      throw new AppError('Transfer policy table not found. Run database/create-transfer-policy.sql first', 400);
+      throw new AppError('Transfer policy table not found. Run database/schema.sql first', 400);
     }
     throw error;
   }
@@ -561,6 +562,12 @@ const applySquadTransfers = async ({
       insertValues
     );
 
+    const overallLeagueResult = await ensureUserInOverallLeague({
+      userId,
+      leagueSeasonId,
+      executor: conn,
+    });
+
     await conn.commit();
 
     return {
@@ -573,6 +580,8 @@ const applySquadTransfers = async ({
       stage: meta.stage,
       unlimited: meta.unlimited,
       transfersRemainingAfterApply: meta.unlimited ? null : Math.max(0, Number(meta.transfersRemaining || 0) - transferDelta),
+      overallLeagueJoined: overallLeagueResult.joined,
+      overallLeague: overallLeagueResult.league,
     };
   } catch (error) {
     await conn.rollback();

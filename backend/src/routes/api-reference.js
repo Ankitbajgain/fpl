@@ -42,6 +42,49 @@ const apiReference = {
 			authRequired: true,
 		},
 		{
+			method: 'GET',
+			path: '/api/v1/private-leagues',
+			purpose: 'List the overall league and all private leagues the current user has joined.',
+			authRequired: true,
+		},
+		{
+			method: 'POST',
+			path: '/api/v1/private-leagues',
+			purpose: 'Create a new private league for a league season and return invite metadata.',
+			authRequired: true,
+			body: {
+				leagueSeasonId: 'IPL_2025',
+				name: 'Office Rivals',
+			},
+		},
+		{
+			method: 'POST',
+			path: '/api/v1/private-leagues/join',
+			purpose: 'Join an existing private league using its invite code.',
+			authRequired: true,
+			body: {
+				inviteCode: 'AB12CD34',
+			},
+		},
+		{
+			method: 'GET',
+			path: '/api/v1/private-leagues/:leagueId',
+			purpose: 'Fetch private league detail, member list, and standings.',
+			authRequired: true,
+		},
+		{
+			method: 'POST',
+			path: '/api/v1/private-leagues/:leagueId/leave',
+			purpose: 'Leave a private league. If the admin leaves, the earliest joined remaining member becomes admin.',
+			authRequired: true,
+		},
+		{
+			method: 'DELETE',
+			path: '/api/v1/private-leagues/:leagueId/members/:userId',
+			purpose: 'Admin removes a member before that member\'s first joined match locks.',
+			authRequired: true,
+		},
+		{
 			method: 'POST',
 			path: '/api/v1/gameplay/squad/validate',
 			purpose: 'Validate budget, role limits, franchise limits, and captain assignments.',

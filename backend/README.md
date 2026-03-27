@@ -46,65 +46,40 @@ Default service URLs:
 
 ```bash
 cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/demo-seed.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
-## Recommended Seed Flow
+## Consolidated Database Script
 
-Use this sequence for a clean, consistent local dataset:
+The database SQL files have been consolidated into a single script:
 
-1. `demo-seed.sql`
-2. `seed-real-multi-league.sql`
-3. `create-transfer-policy.sql`
-4. `cleanup-duplicate-players.sql`
-5. `backfill-player-nationalities.sql`
+1. Base schema
+2. Demo seed data
+3. Multi-league seed data
+4. Transfer policy setup
+5. Duplicate cleanup and nationality backfill
+6. Leaderboard migrations and sample leaderboard data
+7. Transfer-window testing date shifts
 
 ```bash
 cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/demo-seed.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-real-multi-league.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/create-transfer-policy.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/cleanup-duplicate-players.sql
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/backfill-player-nationalities.sql
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
-## Optional Maintenance Scripts
+If you are starting fresh with Docker, the MySQL container also initializes from `database/schema.sql` automatically.
 
-### Seed Real Multi-League Players (Cleanup + IPL/PSL/BPL/BBL/NPL)
+## Included Sections
 
-Removes synthetic `Seed Player ####` rows and seeds real cross-league player mappings with one nationality per player:
+The consolidated script includes the previously separate maintenance and demo sections:
 
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/seed-real-multi-league.sql
-```
-
-### Cleanup Duplicate Players
-
-Merges duplicate player rows (same full_name) into canonical player IDs, remaps references, and enforces unique full_name:
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/cleanup-duplicate-players.sql
-```
-
-### Create Transfer Policies
-
-Creates league-level transfer policy settings used by transfer/meta APIs and admin updates:
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/create-transfer-policy.sql
-```
-
-### Backfill Missing Player Countries
-
-Ensures every player has a nationality entry in `player_nationalities`:
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/backfill-player-nationalities.sql
-```
+- multi-league player seeding
+- duplicate player cleanup
+- transfer policy setup
+- player nationality backfill
+- leaderboard compatibility migrations
+- PSL leaderboard demo data
+- realistic IPL leaderboard scenarios
+- match-date shifting for transfer-window testing
 
 ## Smoke Test
 
