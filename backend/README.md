@@ -1,17 +1,33 @@
 # New FPL Backend
 
-Backend service for the New FPL platform.
+Backend API for New FPL.
 
-This directory is the only supported backend source tree. Make server-side changes here.
+This folder is the server-side source of truth.
 
 ## Stack
 
-- Node.js + Express
-- MySQL
+- Node.js 22+
+- Express 4
+- MySQL 8.4
 - JWT auth
-- Cron jobs
+- Cron job for deadline lock operations
 
-## Run Locally
+## Service URLs
+
+- API: `http://localhost:5001`
+- MySQL: `localhost:3306`
+- phpMyAdmin: `http://localhost:8080`
+
+## Run
+
+### Docker (recommended)
+
+```bash
+cd backend
+docker compose -p new-fpl up -d --build
+```
+
+### Local Node (without Docker app container)
 
 ```bash
 cd backend
@@ -19,82 +35,135 @@ npm install
 npm run dev
 ```
 
-Default API URL:
+If running local Node, ensure MySQL is reachable via env config.
 
-- http://localhost:5001
+## Database
 
-## Run with Docker
+Single canonical SQL script:
 
-```bash
-cd backend
-docker compose up --build
-```
+- [database/schema.sql](database/schema.sql)
 
-Default service URLs:
-
-- API: http://localhost:5001
-- phpMyAdmin: http://localhost:8080
-
-## API Groups
-
-- Auth: `/api/v1/auth`
-- Gameplay: `/api/v1/gameplay`
-- Admin dashboard: `/api/v1/admin`
-- API reference: `/api/v1/api-reference`
-
-## Seed Demo Data
+Run/re-run:
 
 ```bash
 cd backend
 docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```
 
-## Consolidated Database Script
+The script includes:
 
-The database SQL files have been consolidated into a single script:
+- schema creation
+- migrations
+- demo seed users/fixtures
+- multi-league seed
+- private-league QA seed
+- leaderboard compatibility + sample data
+- transfer-window date shifting helpers
 
-1. Base schema
-2. Demo seed data
-3. Multi-league seed data
-4. Transfer policy setup
-5. Duplicate cleanup and nationality backfill
-6. Leaderboard migrations and sample leaderboard data
-7. Transfer-window testing date shifts
+## Scripts
 
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
-```
+- `npm run dev` - nodemon server
+- `npm run start` - production server
+- `npm run smoke:multi-league` - smoke tests
 
-If you are starting fresh with Docker, the MySQL container also initializes from `database/schema.sql` automatically.
+## API Surface
 
-## Included Sections
+### Auth
 
-The consolidated script includes the previously separate maintenance and demo sections:
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
 
-- multi-league player seeding
-- duplicate player cleanup
-- transfer policy setup
-- player nationality backfill
-- leaderboard compatibility migrations
-- PSL leaderboard demo data
-- realistic IPL leaderboard scenarios
-- match-date shifting for transfer-window testing
+### Gameplay
+
+- `GET /api/v1/gameplay/leagues`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/fixtures`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/players`
+- `POST /api/v1/gameplay/leagues/:leagueSeasonId/fixtures/:fixtureId/squad/apply`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/transfer-window`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard/players`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard/managers`
+- `GET /api/v1/gameplay/leagues/:leagueSeasonId/favorites`
+- `PUT /api/v1/gameplay/leagues/:leagueSeasonId/favorites`
+
+### Private Leagues
+
+- `GET /api/v1/private-leagues`
+- `POST /api/v1/private-leagues`
+- `POST /api/v1/private-leagues/join`
+- `GET /api/v1/private-leagues/:leagueId`
+- `POST /api/v1/private-leagues/:leagueId/leave`
+- `DELETE /api/v1/private-leagues/:leagueId/members/:userId`
+
+### Admin
+
+- Fixtures management, sync, live-stats upsert
+- transfer policy updates
+- points finalization
+
+## Important Gameplay Rules (Current)
+
+- Favorite bonus:
+	- favorite nation match: `1.2x`
+	- favorite franchise match: `1.5x`
+	- both match: stacked multiplier
+- Favorite selections are league-scoped and user-scoped.
+- Favorite franchise dropdown is league-specific (for example IPL shows IPL teams only).
+- Favorite changes lock after setup window closes.
+- Transfer policy:
+	- all users get up to `160` transfers through Match `70`
+	- transfers are applied to upcoming fixture only
+	- transfer window locks 15 minutes before fixture start
+- Mid-season join behavior:
+	- users can access all features immediately
+	- users can create/setup team for upcoming fixture before lock
+	- users begin at `0` in any contest and earn from future matches
+
+## Leaderboard and Points Behavior
+
+- `finalizeMatchPoints` computes and persists player/squad fantasy points.
+- Manager leaderboard reads cumulative `manager_squads.points_total` for finalized fixtures.
+- Private-league standings count points only from fixtures on/after member `joined_at`.
 
 ## Smoke Test
-
-Verify auth and the multi-league endpoints with:
 
 ```bash
 cd backend
 npm run smoke:multi-league
 ```
 
-Override the base URL or credentials if needed:
+Override env:
 
 ```bash
 SMOKE_BASE_URL=http://localhost:5001 \
 SMOKE_EMAIL=manager1@newfpl.local \
 SMOKE_PASSWORD=ManagerPass123 \
 npm run smoke:multi-league
+```
+
+## Troubleshooting
+
+### Route not found after code updates
+
+```bash
+cd backend
+docker compose -p new-fpl up -d --build app
+```
+
+### phpMyAdmin "Cannot connect: invalid settings"
+
+Usually a compose-network split. Ensure all containers are in one compose project:
+
+```bash
+cd backend
+docker compose -p new-fpl up -d --build
+docker compose -p new-fpl ps
+```
+
+### SQL/column/table errors
+
+```bash
+cd backend
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
 ```

@@ -1,72 +1,52 @@
 # New FPL Monorepo
 
-Multi-app fantasy cricket workspace with:
+Fantasy-cricket monorepo with separate apps for API, manager UI, and admin UI.
 
-- Backend API (Node.js + Express + MySQL)
-- Manager Frontend (React + Vite)
-- Admin Dashboard (React + Vite)
-
-## Workspace Structure
+## Apps
 
 - Backend API: [backend](backend)
-- Manager frontend: [frontend](frontend)
-- Admin dashboard: [dashboard](dashboard)
-- Architecture notes: [CODEBASE_OVERVIEW.md](CODEBASE_OVERVIEW.md)
+- Manager Frontend: [frontend](frontend)
+- Admin Dashboard: [dashboard](dashboard)
+- Codebase notes: [CODEBASE_OVERVIEW.md](CODEBASE_OVERVIEW.md)
 
-The backend source of truth is under [backend](backend).
+## Key Product Rules
 
-## Core Features
+- Multi-league play (`IPL_2025`, `PSL_2025`, `BBL_2025`, `BPL_2025`, `NPL_2025`).
+- Private leagues per season with invite code flow.
+- Favorite bonus preferences per user + league season:
+  - 1 favorite nation: `1.2x` on matching players.
+  - 1 favorite league franchise: `1.5x` on matching players.
+- Transfer cap rule:
+  - `160` total transfers available through Match `70`.
+  - Transfers are applied to upcoming fixture only.
+  - Window locks `15` minutes before fixture start.
+- Join timing behavior:
+  - Users joining at any point start with `0` points in that contest.
+  - Points are earned from future matches only.
 
-- Multi-league support (`IPL_2025`, `PSL_2025`, etc.)
-- Fantasy points engine (Dream11-style cricket logic)
-- Transfer window lifecycle:
-	- Match completes
-	- 15-minute cooldown
-	- Transfer window opens for next fixture
-	- Window locks at fixture lock time
-- Leaderboards:
-	- Player leaderboard (cumulative player points in league)
-	- Manager leaderboard (cumulative squad points across finalized matches)
-	- Combined endpoint (players + managers in one call)
-- Admin workflows:
-	- Fixture management (including `match_type`, completion handling)
-	- Match stats upsert
-	- Points finalization per fixture
+## Quick Start
 
-## Prerequisites
-
-- Node.js 18+ (22 recommended)
-- npm 9+
-- Docker + Docker Compose (recommended for backend + MySQL)
-
-## Run Modes
-
-### Local Node (backend only)
+### 1) Start backend stack (API + MySQL + phpMyAdmin)
 
 ```bash
 cd backend
-npm install
-npm run dev
+docker compose -p new-fpl up -d --build
 ```
 
-Backend URL:
-
-- `http://localhost:5001`
-
-### Docker (recommended backend stack)
-
-```bash
-cd backend
-docker compose up --build
-```
-
-Services:
+URLs:
 
 - API: `http://localhost:5001`
-- MySQL: `localhost:3306`
 - phpMyAdmin: `http://localhost:8080`
+- MySQL: `localhost:3306`
 
-### Frontend
+### 2) Run database script
+
+```bash
+cd backend
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
+```
+
+### 3) Start manager frontend
 
 ```bash
 cd frontend
@@ -74,11 +54,11 @@ npm install
 npm run dev
 ```
 
-Frontend URL:
+Manager UI URL:
 
 - `http://localhost:5173`
 
-### Dashboard
+### 4) Start admin dashboard
 
 ```bash
 cd dashboard
@@ -90,138 +70,49 @@ Dashboard URL:
 
 - `http://localhost:5175`
 
-## Database Setup
-
-For a clean local dataset, run SQL in this order.
-
-### Base seed flow
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
-```
-
-`database/schema.sql` is now the single canonical database script. It contains the base schema, all migrations, the demo seed flow, leaderboard seed data, and the transfer-window test updates.
-
-### Included leaderboard setup
-
-The consolidated script already includes the compatibility migration and the newer points-transfer-window/finalization migrations.
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
-```
-
-### Optional realistic leaderboard data
-
-This is also included in the consolidated script:
-
-```bash
-cd backend
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
-```
-
 ## Demo Accounts
 
-- Admin: `admin@newfpl.local`
-- Manager 1: `manager1@newfpl.local`
-- Manager 2: `manager2@newfpl.local`
-- Manager 3: `manager3@newfpl.local`
-- Manager 4: `manager4@newfpl.local`
+- Admin: `admin@newfpl.local` / `AdminPass123`
+- Manager: `manager1@newfpl.local` / `ManagerPass123`
+- Manager: `manager2@newfpl.local` / `ManagerPass123`
 
-Password for manager demo users is set by seed scripts (default used in smoke checks: `ManagerPass123`).
+Additional manager users are seeded for private-league QA.
 
-## Leaderboard APIs
+## Repository Conventions
 
-All gameplay routes require bearer auth.
-
-### Player leaderboard
-
-`GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard/players?limit=10`
-
-Returns cumulative player fantasy points for finalized matches in the league.
-
-### Manager leaderboard
-
-`GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard/managers?limit=10`
-
-Returns cumulative manager points where:
-
-- Each fixture contributes `manager_squads.points_total`
-- Total is `SUM(points_total)` across finalized matches
-- Example: 500 in match 1 + 450 in match 2 = 950 cumulative
-
-### Combined leaderboard
-
-`GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard?playersLimit=10&managersLimit=10`
-
-Returns a single payload:
-
-- `players`: player leaderboard rows
-- `managers`: manager leaderboard rows
-- `generatedAt`: ISO timestamp
-
-## Transfer Window + Finalization Flow
-
-Expected production flow:
-
-1. Fixture status changes to `COMPLETED` and `ended_at` is set.
-2. Next fixture gets `transfer_window_opens_at = ended_at + 15 minutes`.
-3. During cooldown, points are finalized.
-4. Leaderboards update from finalized data.
-5. Transfer window opens for the next fixture.
-
-## Smoke Test
-
-Run smoke checks once backend is up:
-
-```bash
-cd backend
-npm run smoke:multi-league
-```
-
-Override target env if needed:
-
-```bash
-SMOKE_BASE_URL=http://localhost:5001 \
-SMOKE_EMAIL=manager1@newfpl.local \
-SMOKE_PASSWORD=ManagerPass123 \
-npm run smoke:multi-league
-```
+- Backend source of truth: [backend](backend)
+- Database source of truth: [backend/database/schema.sql](backend/database/schema.sql)
+- Use one compose project name (`new-fpl`) to avoid cross-network container issues.
 
 ## Troubleshooting
 
-### Route not found for leaderboard
+### phpMyAdmin cannot connect to MySQL host `mysql`
 
-- Rebuild and restart backend container with explicit compose file:
-
-```bash
-docker compose -f backend/docker-compose.yml up -d --build app
-```
-
-### `Too many requests, please try again later`
-
-- Local compose sets `RATE_LIMIT_DISABLE=1` in app environment.
-- If you changed compose/env, restore that value and restart app.
-
-### `Unknown column 'pls.fantasy_points'`
-
-- Re-run the consolidated database script:
+Cause is usually split compose projects/networks.
 
 ```bash
-docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < backend/database/schema.sql
+cd backend
+docker compose -p new-fpl up -d --build
+docker compose -p new-fpl ps
 ```
 
-### Leaderboard shows no rows
+### API route returns 404 after code changes
 
-- Ensure the league has fixtures where:
-	- `status = COMPLETED`
-	- `points_finalized_at IS NOT NULL`
-- Ensure matching rows exist in:
-	- `player_live_stats` for player leaderboard
-	- `manager_squads` for manager leaderboard
+Rebuild app container:
 
-## Additional Docs
+```bash
+cd backend
+docker compose -p new-fpl up -d --build app
+```
+
+### SQL schema mismatch / missing column/table
+
+```bash
+cd backend
+docker exec -i new-fpl-mysql mysql -uroot -proot new_fpl < database/schema.sql
+```
+
+## Per-App Documentation
 
 - Backend details: [backend/README.md](backend/README.md)
 - Frontend details: [frontend/README.md](frontend/README.md)

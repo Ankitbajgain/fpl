@@ -1,199 +1,136 @@
 # New FPL Frontend
 
-Responsive fantasy-cricket frontend built with React, Tailwind CSS, and Redux Toolkit.
+Manager-facing frontend for squad creation, transfers, private leagues, and live leaderboards.
 
-## Tech Stack
+## Stack
 
-- React 19 (Vite)
+- React 19
+- Vite 8
 - Redux Toolkit + React Redux
-- Tailwind CSS 3 + PostCSS
+- Tailwind CSS 3
 - ESLint
 
-## Features Implemented
-
-- Fully responsive layout for mobile, tablet, and desktop
-- Redux-driven squad state (players, selection, favorites, mode, formation)
-- Backend auth integration:
-	- Login using `/api/v1/auth/login`
-	- Session restore using `/api/v1/auth/me`
-	- Logout clears token + auth state
-- Squad validation integration:
-	- Validates selected squad using `/api/v1/gameplay/squad/validate`
-	- Displays API success/error in UI
-- Tailwind-based custom visual system (typography, color tokens, cards, layout)
-
-## Project Structure
-
-```txt
-frontend/
-├── public/
-├── src/
-│   ├── app/
-│   │   └── store.js                 # Redux store config
-│   ├── assets/
-│   ├── features/
-│   │   └── squad/
-│   │       └── squadSlice.js        # Squad + auth + validation state
-│   ├── App.jsx                      # Main responsive UI + API calls
-│   ├── index.css                    # Tailwind + global base styles
-│   └── main.jsx                     # React root + Redux Provider
-├── index.html
-├── postcss.config.js
-├── tailwind.config.js
-├── vite.config.js                   # Dev proxy to backend
-└── package.json
-```
-
-## Prerequisites
-
-- Node.js 20+ (recommended)
-- npm 10+
-- Backend running at `http://localhost:5001`
-
-## Installation
-
-From monorepo root:
+## Run
 
 ```bash
 cd frontend
 npm install
-```
-
-## Run in Development
-
-```bash
-cd frontend
 npm run dev
 ```
 
-Frontend URL:
+URL:
 
 - `http://localhost:5173`
 
-## Build for Production
+Backend requirement:
+
+- API available at `http://localhost:5001`
+
+## Build
 
 ```bash
 cd frontend
 npm run build
-```
-
-Preview build output:
-
-```bash
-cd frontend
 npm run preview
 ```
 
-## Available Scripts
+## Dev Proxy
 
-- `npm run dev` -> Start Vite dev server
-- `npm run build` -> Build production assets
-- `npm run preview` -> Preview production build
-- `npm run lint` -> Run ESLint
-
-## Backend Integration Details
-
-### Dev Proxy
-
-Configured in `vite.config.js`:
+Configured in [frontend/vite.config.js](vite.config.js):
 
 - `/api` -> `http://localhost:5001`
 - `/health` -> `http://localhost:5001`
 
-This avoids CORS issues during local development.
+## Major Features
 
-### Auth Flow
+- Auth login/register/session restore.
+- Multi-league selector.
+- Fixture selector with upcoming-fixture auto-selection.
+- Squad builder with:
+	- role limits
+	- budget checks
+	- away-player constraints
+	- captain/vice-captain handling
+- Transfer apply flow to upcoming fixture window.
+- Private leagues:
+	- create
+	- join by invite code
+	- list and detail
+	- standings table
+- Favorite bonus preferences panel:
+	- choose 1 favorite nation (from all nations)
+	- choose 1 favorite franchise (league-scoped)
+	- lock-aware UI when setup window closes
 
-1. User submits email/password in sidebar login form.
-2. UI calls `POST /api/v1/auth/login`.
-3. On success, JWT is stored in `localStorage` under key:
-	 - `newfpl_access_token`
-4. On app load, frontend tries `GET /api/v1/auth/me` using stored token.
-5. If token is invalid/expired, token is removed and user is logged out.
+## Current Gameplay Rules Reflected in UI
 
-### Squad Validation Flow
+- Favorite nation multiplier: `1.2x`
+- Favorite franchise multiplier: `1.5x`
+- Transfer pool: up to `160` transfers through Match `70`
+- Team setup and transfers are tied to upcoming fixture before lock
+- Mid-season joiners can access all features and set up before upcoming match
 
-1. User selects players from player cards.
-2. User chooses captain + vice-captain from selected players.
-3. UI calls `POST /api/v1/gameplay/squad/validate` with:
-	 - `playerIds`
-	 - `captainId`
-	 - `viceCaptainId`
-	 - `budgetCap`
-4. Response is shown in the integration panel.
+## Key API Calls Used
 
-## Redux State Model
+- Auth:
+	- `POST /api/v1/auth/login`
+	- `POST /api/v1/auth/register`
+	- `GET /api/v1/auth/me`
+- Gameplay:
+	- `GET /api/v1/gameplay/leagues`
+	- `GET /api/v1/gameplay/leagues/:leagueSeasonId/fixtures`
+	- `GET /api/v1/gameplay/leagues/:leagueSeasonId/players`
+	- `GET /api/v1/gameplay/leagues/:leagueSeasonId/transfer-window`
+	- `GET /api/v1/gameplay/leagues/:leagueSeasonId/leaderboard`
+	- `POST /api/v1/gameplay/squad/validate`
+	- `POST /api/v1/gameplay/leagues/:leagueSeasonId/fixtures/:fixtureId/squad/apply`
+	- `GET /api/v1/gameplay/leagues/:leagueSeasonId/favorites`
+	- `PUT /api/v1/gameplay/leagues/:leagueSeasonId/favorites`
+- Private leagues:
+	- `GET /api/v1/private-leagues`
+	- `POST /api/v1/private-leagues`
+	- `POST /api/v1/private-leagues/join`
+	- `GET /api/v1/private-leagues/:leagueId`
+	- `POST /api/v1/private-leagues/:leagueId/leave`
 
-Managed in `src/features/squad/squadSlice.js`.
+## Project Layout
 
-Key state fields:
+```txt
+frontend/
+	src/
+		app/store.js
+		components/
+		features/squad/squadSlice.js
+		hooks/useAuth.js
+		App.jsx
+```
 
-- `players` -> Local player pool used by UI cards
-- `selectedIds` -> Current squad player IDs
-- `budgetCap` -> Budget limit used for stats/validation payload
-- `formation` -> Selected formation value
-- `mode` -> Selected game mode
-- `favorites` -> Favorited player IDs
-- `authToken` -> JWT from backend login
-- `currentUser` -> Authenticated user profile
-- `validationResult` -> Last successful squad validation result
-- `validationError` -> Last validation error message
+## Demo Credentials
 
-Core actions:
-
-- `togglePlayer`
-- `toggleFavorite`
-- `setMode`
-- `setFormation`
-- `setAuthSession`
-- `clearAuthSession`
-- `setValidationResult`
-- `setValidationError`
-- `clearValidationState`
-
-## Responsive Design Notes
-
-- Mobile-first spacing and typography via Tailwind utility classes
-- Adaptive layout structure:
-	- Single-column behavior on small screens
-	- Multi-column cards/grids on larger screens
-- Sidebar + player grid reflow for tablet and desktop breakpoints
-- Touch-friendly controls and large action buttons for phone usage
-
-## Demo Credentials (Backend Seed)
-
-If backend demo seed is loaded, use:
-
-- Email: `manager1@newfpl.local`
-- Password: `ManagerPass123`
+- `manager1@newfpl.local` / `ManagerPass123`
+- `manager2@newfpl.local` / `ManagerPass123`
 
 ## Troubleshooting
 
-### 1) Login fails with network error
+### Route exists in code but FE gets 404
 
-- Ensure backend is running on `http://localhost:5001`
-- Confirm Vite dev server is started from `frontend/`
+Rebuild backend app container:
 
-### 2) Validation says login required
+```bash
+cd backend
+docker compose -p new-fpl up -d --build app
+```
 
-- Login first using sidebar form
-- Check browser storage for `newfpl_access_token`
+### Favorites panel says route not found
 
-### 3) Validation fails with player error
+Backend container is stale. Rebuild app container and refresh browser.
 
-- Backend database must contain corresponding player IDs
-- Re-run backend seed if needed
+### UI stuck on old fixture
 
-### 4) Tailwind styles not applied
+Logout/login or reselect league to force refetch of fixtures and upcoming match.
 
-- Ensure `src/index.css` includes Tailwind directives
-- Restart dev server after config changes
+### Network/auth errors
 
-## Next Suggested Improvements
-
-- Replace local player pool with live API-driven player list
-- Add fixtures API integration and filter players by fixture
-- Add route-based pages (Login, Dashboard, Squad, Profile)
-- Add optimistic loading states and toast notifications
-- Add persisted Redux state and refresh-safe UI preferences
+- Verify backend URL and token in storage.
+- Check browser devtools for `401` vs `404` vs CORS/proxy issues.
 
