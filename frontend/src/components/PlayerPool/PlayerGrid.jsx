@@ -1,17 +1,35 @@
-import { PlayerCard } from './PlayerCard'
+import { PlayerCard } from "./PlayerCard";
 
-export function PlayerGrid({ players, selectedIds, onTogglePlayer, mode, homeCountry, isLocked }) {
+export function PlayerGrid({
+  players,
+  selectedIds,
+  onTogglePlayer,
+  mode,
+  homeCountry,
+  creditsLeft,
+  isLocked,
+}) {
   if (!players.length) {
     return (
-      <p className="mt-4 rounded-xl bg-[#f8f2e8] px-3 py-2 text-sm text-[#5f6a76]">
-        No players found for this tab.
-      </p>
-    )
+      <div className="mt-4 rounded-2xl border border-[#e6edf5] bg-[#f8fbff] px-4 py-4 text-sm text-[#5f6a76]">
+        No players found for this tab or filter combination.
+      </div>
+    );
   }
 
+  const selectedPlayers = players.filter((player) =>
+    selectedIds.includes(player.id),
+  );
+  const unselectedPlayers = players.filter(
+    (player) => !selectedIds.includes(player.id),
+  );
+  const orderedPlayers = [...selectedPlayers, ...unselectedPlayers];
+
   return (
-    <div className={`mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 ${isLocked ? 'pointer-events-none opacity-60' : ''}`}>
-      {players.map((player) => (
+    <div
+      className={`grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 ${isLocked ? "pointer-events-none opacity-60" : ""}`}
+    >
+      {orderedPlayers.map((player) => (
         <PlayerCard
           key={player.id}
           player={player}
@@ -19,9 +37,10 @@ export function PlayerGrid({ players, selectedIds, onTogglePlayer, mode, homeCou
           onToggle={onTogglePlayer}
           mode={mode}
           homeCountry={homeCountry}
+          creditsLeft={creditsLeft}
           isLocked={isLocked}
         />
       ))}
     </div>
-  )
+  );
 }

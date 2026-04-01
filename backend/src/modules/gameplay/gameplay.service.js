@@ -1,24 +1,29 @@
-const { pool } = require('../../config/mysql');
-const AppError = require('../../utils/AppError');
-const { ensureUserInOverallLeague } = require('../privateLeagues/privateLeagues.service');
+const { pool } = require("../../config/mysql");
+const AppError = require("../../utils/AppError");
+const {
+  ensureUserInOverallLeague,
+} = require("../privateLeagues/privateLeagues.service");
 const {
   validateSquad,
   isSquadLocked,
   transferPenalty,
   applyBooster,
   calculateCricketFantasyPoints,
-} = require('./gameplay.rules');
+} = require("./gameplay.rules");
 
 const FAVORITE_NATION_MULTIPLIER = 1.2;
 const FAVORITE_FRANCHISE_MULTIPLIER = 1.5;
 const TOURNAMENT_TRANSFER_CAP = 160;
 const TOURNAMENT_TRANSFER_CAP_MATCH = 70;
 
-const normalizeText = (value) => String(value || '').trim().toLowerCase();
+const normalizeText = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
 
 const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
   if (!playerIds.length) return [];
-  const placeholders = playerIds.map(() => '?').join(',');
+  const placeholders = playerIds.map(() => "?").join(",");
 
   let rows;
   if (leagueSeasonId) {
@@ -36,7 +41,7 @@ const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
          AND p.is_active = 1
          AND lsp.league_season_id = ?
          AND lsp.is_active = 1`,
-      [...playerIds, leagueSeasonId]
+      [...playerIds, leagueSeasonId],
     );
   } else {
     [rows] = await pool.query(
@@ -49,7 +54,7 @@ const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
        LEFT JOIN player_nationalities pn ON pn.player_id = p.id
        LEFT JOIN nations n ON n.id = pn.nation_id
        WHERE p.id IN (${placeholders}) AND p.is_active = 1`,
-      playerIds
+      playerIds,
     );
   }
 
@@ -57,7 +62,7 @@ const getPlayersByIds = async (playerIds, leagueSeasonId = null) => {
 };
 
 const getLeagueHomeCountry = async (leagueSeasonId) => {
-  if (!leagueSeasonId) return 'India';
+  if (!leagueSeasonId) return "India";
 
   const [rows] = await pool.query(
     `SELECT n.name AS nation
@@ -66,69 +71,69 @@ const getLeagueHomeCountry = async (leagueSeasonId) => {
      JOIN nations n ON n.id = c.nation_id
      WHERE ls.id = ?
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
-  return rows[0]?.nation || 'India';
+  return rows[0]?.nation || "India";
 };
 
 const getCountryFromFranchise = (shortName) => {
   const countryMap = {
-    MI: 'India',
-    CSK: 'India',
-    RCB: 'India',
-    KKR: 'India',
-    DC: 'India',
-    RR: 'India',
-    PBKS: 'India',
-    SRH: 'India',
-    GT: 'India',
-    LSG: 'India',
-    DMU: 'India',
-    IND: 'India',
-    AUS: 'Australia',
-    ENG: 'England',
-    NEP: 'Nepal',
-    NZ: 'New Zealand',
-    SA: 'South Africa',
-    PAK: 'Pakistan',
-    BAN: 'Bangladesh',
-    SL: 'Sri Lanka',
-    AFG: 'Afghanistan',
-    WI: 'West Indies',
-    IRE: 'Ireland',
-    NED: 'Netherlands',
-    KK: 'Pakistan',
-    IU: 'Pakistan',
-    LQ: 'Pakistan',
-    MSU: 'Pakistan',
-    PZ: 'Pakistan',
-    QG: 'Pakistan',
-    ADS: 'Australia',
-    BRH: 'Australia',
-    HBH: 'Australia',
-    MLR: 'Australia',
-    MLS: 'Australia',
-    PES: 'Australia',
-    SYS: 'Australia',
-    SYT: 'Australia',
-    CTV: 'Bangladesh',
-    CHC: 'Bangladesh',
-    DHK: 'Bangladesh',
-    FRT: 'Bangladesh',
-    KLT: 'Bangladesh',
-    RAN: 'Bangladesh',
-    SYL: 'Bangladesh',
-    BIR: 'Nepal',
-    CHI: 'Nepal',
-    JAN: 'Nepal',
-    KTM: 'Nepal',
-    LUM: 'Nepal',
-    POK: 'Nepal',
-    SPR: 'Nepal',
-    KOS: 'Nepal',
+    MI: "India",
+    CSK: "India",
+    RCB: "India",
+    KKR: "India",
+    DC: "India",
+    RR: "India",
+    PBKS: "India",
+    SRH: "India",
+    GT: "India",
+    LSG: "India",
+    DMU: "India",
+    IND: "India",
+    AUS: "Australia",
+    ENG: "England",
+    NEP: "Nepal",
+    NZ: "New Zealand",
+    SA: "South Africa",
+    PAK: "Pakistan",
+    BAN: "Bangladesh",
+    SL: "Sri Lanka",
+    AFG: "Afghanistan",
+    WI: "West Indies",
+    IRE: "Ireland",
+    NED: "Netherlands",
+    KK: "Pakistan",
+    IU: "Pakistan",
+    LQ: "Pakistan",
+    MSU: "Pakistan",
+    PZ: "Pakistan",
+    QG: "Pakistan",
+    ADS: "Australia",
+    BRH: "Australia",
+    HBH: "Australia",
+    MLR: "Australia",
+    MLS: "Australia",
+    PES: "Australia",
+    SYS: "Australia",
+    SYT: "Australia",
+    CTV: "Bangladesh",
+    CHC: "Bangladesh",
+    DHK: "Bangladesh",
+    FRT: "Bangladesh",
+    KLT: "Bangladesh",
+    RAN: "Bangladesh",
+    SYL: "Bangladesh",
+    BIR: "Nepal",
+    CHI: "Nepal",
+    JAN: "Nepal",
+    KTM: "Nepal",
+    LUM: "Nepal",
+    POK: "Nepal",
+    SPR: "Nepal",
+    KOS: "Nepal",
   };
-  return countryMap[shortName] || 'Unknown';
+  return countryMap[shortName] || "Unknown";
 };
 
 // Get players for a specific league season
@@ -167,7 +172,7 @@ const listPlayersForLeague = async (leagueSeasonId) => {
        ) deduped
        WHERE rn = 1
        ORDER BY role, credits DESC, full_name ASC`,
-      [leagueSeasonId]
+      [leagueSeasonId],
     );
 
     return rows.map((row) => ({
@@ -179,7 +184,7 @@ const listPlayersForLeague = async (leagueSeasonId) => {
       country: row.country,
     }));
   } catch (error) {
-    console.error('Error fetching league players:', error);
+    console.error("Error fetching league players:", error);
     throw error;
   }
 };
@@ -191,7 +196,7 @@ const listActivePlayers = async () => {
      FROM players p
      INNER JOIN franchises f ON f.id = p.franchise_id
      WHERE p.is_active = 1
-     ORDER BY p.role, p.credit_price DESC, p.full_name ASC`
+     ORDER BY p.role, p.credit_price DESC, p.full_name ASC`,
   );
 
   return rows.map((row) => ({
@@ -204,25 +209,42 @@ const listActivePlayers = async () => {
   }));
 };
 
-const validateSquadSelection = async ({ playerIds, captainId, viceCaptainId, budgetCap = 100, leagueSeasonId = null }) => {
+const validateSquadSelection = async ({
+  playerIds,
+  captainId,
+  viceCaptainId,
+  budgetCap = 100,
+  leagueSeasonId = null,
+}) => {
   const uniqueIds = new Set((playerIds || []).map((id) => Number(id)));
   if (uniqueIds.size !== (playerIds || []).length) {
-    throw new Error('Duplicate player selection is not allowed');
+    throw new Error("Duplicate player selection is not allowed");
   }
 
   const players = await getPlayersByIds(playerIds, leagueSeasonId);
   if (players.length !== playerIds.length) {
-    throw new Error('One or more selected players are invalid or inactive');
+    throw new Error("One or more selected players are invalid or inactive");
   }
 
   const homeCountry = await getLeagueHomeCountry(leagueSeasonId);
 
-  const normalizedNames = players.map((p) => String(p.full_name || '').trim().toLowerCase());
+  const normalizedNames = players.map((p) =>
+    String(p.full_name || "")
+      .trim()
+      .toLowerCase(),
+  );
   if (new Set(normalizedNames).size !== normalizedNames.length) {
-    throw new Error('Duplicate player names are not allowed in a squad');
+    throw new Error("Duplicate player names are not allowed in a squad");
   }
 
-  return validateSquad({ players, captainId, viceCaptainId, budgetCap, homeCountry, maxAwayPlayers: 4 });
+  return validateSquad({
+    players,
+    captainId,
+    viceCaptainId,
+    budgetCap,
+    homeCountry,
+    maxAwayPlayers: 4,
+  });
 };
 
 const getLeagueTransferPolicy = async (leagueSeasonId) => {
@@ -232,17 +254,18 @@ const getLeagueTransferPolicy = async (leagueSeasonId) => {
      JOIN competitions c ON c.id = ls.competition_id
      WHERE ls.id = ?
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   if (!leagueRows.length) {
-    throw new AppError('League season not found', 404);
+    throw new AppError("League season not found", 404);
   }
 
   const league = leagueRows[0];
-  const defaultLeagueStageMatches = league.competition === 'IPL'
-    ? 70
-    : Math.max(1, Number(league.total_fixtures || 1));
+  const defaultLeagueStageMatches =
+    league.competition === "IPL"
+      ? 70
+      : Math.max(1, Number(league.total_fixtures || 1));
 
   try {
     const [policyRows] = await pool.query(
@@ -252,12 +275,16 @@ const getLeagueTransferPolicy = async (leagueSeasonId) => {
        FROM league_transfer_policies
        WHERE league_season_id = ?
        LIMIT 1`,
-      [leagueSeasonId]
+      [leagueSeasonId],
     );
 
     const policy = policyRows[0] || null;
-    const leagueStageMatchCount = Number(policy?.league_stage_match_count || defaultLeagueStageMatches);
-    const qualifier1MatchNumber = Number(policy?.qualifier1_match_number || (leagueStageMatchCount + 1));
+    const leagueStageMatchCount = Number(
+      policy?.league_stage_match_count || defaultLeagueStageMatches,
+    );
+    const qualifier1MatchNumber = Number(
+      policy?.qualifier1_match_number || leagueStageMatchCount + 1,
+    );
 
     return {
       leagueSeasonId,
@@ -266,12 +293,13 @@ const getLeagueTransferPolicy = async (leagueSeasonId) => {
       playoffTransferCap: Number(policy?.playoff_transfer_cap || 10),
       qualifier1MatchNumber,
       unlimitedPreMatch1: Number(policy?.unlimited_pre_match1 ?? 1) === 1,
-      unlimitedBetweenLeagueAndQ1: Number(policy?.unlimited_between_league_and_q1 ?? 1) === 1,
-      source: policy ? 'configured' : 'default',
+      unlimitedBetweenLeagueAndQ1:
+        Number(policy?.unlimited_between_league_and_q1 ?? 1) === 1,
+      source: policy ? "configured" : "default",
       updatedAt: policy?.updated_at || null,
     };
   } catch (error) {
-    if (error.code === 'ER_NO_SUCH_TABLE') {
+    if (error.code === "ER_NO_SUCH_TABLE") {
       return {
         leagueSeasonId,
         leagueStageMatchCount: defaultLeagueStageMatches,
@@ -280,7 +308,7 @@ const getLeagueTransferPolicy = async (leagueSeasonId) => {
         qualifier1MatchNumber: defaultLeagueStageMatches + 1,
         unlimitedPreMatch1: true,
         unlimitedBetweenLeagueAndQ1: true,
-        source: 'default',
+        source: "default",
         updatedAt: null,
       };
     }
@@ -298,17 +326,27 @@ const upsertLeagueTransferPolicy = async ({
   unlimitedBetweenLeagueAndQ1,
   adminUserId,
 }) => {
-  if (!leagueSeasonId) throw new AppError('leagueSeasonId is required', 400);
+  if (!leagueSeasonId) throw new AppError("leagueSeasonId is required", 400);
 
   const stageCount = Number(leagueStageMatchCount);
   const stageCap = Number(leagueStageTransferCap);
   const playoffCap = Number(playoffTransferCap);
-  const q1MatchNo = Number(qualifier1MatchNumber || (stageCount + 1));
+  const q1MatchNo = Number(qualifier1MatchNumber || stageCount + 1);
 
-  if (!Number.isInteger(stageCount) || stageCount < 1) throw new AppError('leagueStageMatchCount must be a positive integer', 400);
-  if (!Number.isInteger(stageCap) || stageCap < 0) throw new AppError('leagueStageTransferCap must be a non-negative integer', 400);
-  if (!Number.isInteger(playoffCap) || playoffCap < 0) throw new AppError('playoffTransferCap must be a non-negative integer', 400);
-  if (!Number.isInteger(q1MatchNo) || q1MatchNo < 2) throw new AppError('qualifier1MatchNumber must be an integer >= 2', 400);
+  if (!Number.isInteger(stageCount) || stageCount < 1)
+    throw new AppError("leagueStageMatchCount must be a positive integer", 400);
+  if (!Number.isInteger(stageCap) || stageCap < 0)
+    throw new AppError(
+      "leagueStageTransferCap must be a non-negative integer",
+      400,
+    );
+  if (!Number.isInteger(playoffCap) || playoffCap < 0)
+    throw new AppError(
+      "playoffTransferCap must be a non-negative integer",
+      400,
+    );
+  if (!Number.isInteger(q1MatchNo) || q1MatchNo < 2)
+    throw new AppError("qualifier1MatchNumber must be an integer >= 2", 400);
 
   try {
     await pool.query(
@@ -335,11 +373,14 @@ const upsertLeagueTransferPolicy = async ({
         unlimitedPreMatch1 ? 1 : 0,
         unlimitedBetweenLeagueAndQ1 ? 1 : 0,
         adminUserId || null,
-      ]
+      ],
     );
   } catch (error) {
-    if (error.code === 'ER_NO_SUCH_TABLE') {
-      throw new AppError('Transfer policy table not found. Run database/schema.sql first', 400);
+    if (error.code === "ER_NO_SUCH_TABLE") {
+      throw new AppError(
+        "Transfer policy table not found. Run database/schema.sql first",
+        400,
+      );
     }
     throw error;
   }
@@ -347,19 +388,27 @@ const upsertLeagueTransferPolicy = async ({
   return getLeagueTransferPolicy(leagueSeasonId);
 };
 
-const getFavoritePreferenceLockInfo = async ({ userId, leagueSeasonId, executor = pool }) => {
+const getFavoritePreferenceLockInfo = async ({
+  userId,
+  leagueSeasonId,
+  executor = pool,
+}) => {
   const [firstFixtureRows] = await executor.query(
     `SELECT id, starts_at
      FROM fixtures
      WHERE league_season_id = ?
      ORDER BY starts_at ASC, id ASC
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   const firstFixture = firstFixtureRows[0] || null;
-  const firstMatchStartsAt = firstFixture?.starts_at ? new Date(firstFixture.starts_at) : null;
-  const globalLock = Boolean(firstMatchStartsAt && new Date() >= firstMatchStartsAt);
+  const firstMatchStartsAt = firstFixture?.starts_at
+    ? new Date(firstFixture.starts_at)
+    : null;
+  const globalLock = Boolean(
+    firstMatchStartsAt && new Date() >= firstMatchStartsAt,
+  );
 
   if (!globalLock || !userId) {
     return {
@@ -374,7 +423,7 @@ const getFavoritePreferenceLockInfo = async ({ userId, leagueSeasonId, executor 
      FROM manager_squads
      WHERE user_id = ? AND league_season_id = ?
      LIMIT 1`,
-    [Number(userId), leagueSeasonId]
+    [Number(userId), leagueSeasonId],
   );
 
   const isExistingManagerInLeague = existingRows.length > 0;
@@ -394,12 +443,16 @@ const getFavoritePreferenceLockInfo = async ({ userId, leagueSeasonId, executor 
        AND lock_at > NOW()
      ORDER BY starts_at ASC, id ASC
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   const upcomingFixture = upcomingRows[0] || null;
-  const upcomingStartsAt = upcomingFixture?.starts_at ? new Date(upcomingFixture.starts_at) : null;
-  const setupLocked = Boolean(!upcomingStartsAt || new Date() >= upcomingStartsAt);
+  const upcomingStartsAt = upcomingFixture?.starts_at
+    ? new Date(upcomingFixture.starts_at)
+    : null;
+  const setupLocked = Boolean(
+    !upcomingStartsAt || new Date() >= upcomingStartsAt,
+  );
 
   return {
     firstFixtureId: upcomingFixture ? Number(upcomingFixture.id) : null,
@@ -414,7 +467,7 @@ const getFavoriteBonusPreferences = async (userId, leagueSeasonId) => {
       `SELECT n.id, n.name, n.iso_code
        FROM nations n
        ORDER BY n.name ASC`,
-      []
+      [],
     ),
     pool.query(
       `SELECT lf.id, lf.team_code, COALESCE(lf.display_name, f.name) AS name
@@ -423,11 +476,14 @@ const getFavoriteBonusPreferences = async (userId, leagueSeasonId) => {
        WHERE lf.league_season_id = ?
          AND lf.is_active = 1
        ORDER BY lf.team_code ASC`,
-      [leagueSeasonId]
+      [leagueSeasonId],
     ),
   ]);
 
-  const lockInfo = await getFavoritePreferenceLockInfo({ userId, leagueSeasonId });
+  const lockInfo = await getFavoritePreferenceLockInfo({
+    userId,
+    leagueSeasonId,
+  });
 
   let selected = {
     favoriteNationId: null,
@@ -451,21 +507,25 @@ const getFavoriteBonusPreferences = async (userId, leagueSeasonId) => {
        LEFT JOIN franchises f ON f.id = lf.franchise_id
        WHERE mbp.user_id = ? AND mbp.league_season_id = ?
        LIMIT 1`,
-      [Number(userId), leagueSeasonId]
+      [Number(userId), leagueSeasonId],
     );
 
     if (selectedRows.length) {
       const row = selectedRows[0];
       selected = {
-        favoriteNationId: row.favorite_nation_id ? Number(row.favorite_nation_id) : null,
+        favoriteNationId: row.favorite_nation_id
+          ? Number(row.favorite_nation_id)
+          : null,
         favoriteNation: row.favorite_nation || null,
-        favoriteLeagueFranchiseId: row.favorite_league_franchise_id ? Number(row.favorite_league_franchise_id) : null,
+        favoriteLeagueFranchiseId: row.favorite_league_franchise_id
+          ? Number(row.favorite_league_franchise_id)
+          : null,
         favoriteFranchiseCode: row.favorite_franchise_code || null,
         favoriteFranchiseName: row.favorite_franchise_name || null,
       };
     }
   } catch (error) {
-    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+    if (error.code !== "ER_NO_SUCH_TABLE") throw error;
   }
 
   const nations = nationRows[0].map((row) => ({
@@ -503,15 +563,20 @@ const upsertFavoriteBonusPreferences = async ({
   favoriteNationId = null,
   favoriteLeagueFranchiseId = null,
 }) => {
-  if (!userId) throw new AppError('User not found in request', 401);
-  if (!leagueSeasonId) throw new AppError('leagueSeasonId is required', 400);
+  if (!userId) throw new AppError("User not found in request", 401);
+  if (!leagueSeasonId) throw new AppError("leagueSeasonId is required", 400);
 
   const nationId = favoriteNationId ? Number(favoriteNationId) : null;
-  const franchiseId = favoriteLeagueFranchiseId ? Number(favoriteLeagueFranchiseId) : null;
+  const franchiseId = favoriteLeagueFranchiseId
+    ? Number(favoriteLeagueFranchiseId)
+    : null;
 
   if (nationId !== null) {
-    const [rows] = await pool.query('SELECT id FROM nations WHERE id = ? LIMIT 1', [nationId]);
-    if (!rows.length) throw new AppError('Favorite nation is invalid', 400);
+    const [rows] = await pool.query(
+      "SELECT id FROM nations WHERE id = ? LIMIT 1",
+      [nationId],
+    );
+    if (!rows.length) throw new AppError("Favorite nation is invalid", 400);
   }
 
   if (franchiseId !== null) {
@@ -520,12 +585,19 @@ const upsertFavoriteBonusPreferences = async ({
        FROM league_franchises
        WHERE id = ? AND league_season_id = ?
        LIMIT 1`,
-      [franchiseId, leagueSeasonId]
+      [franchiseId, leagueSeasonId],
     );
-    if (!rows.length) throw new AppError('Favorite franchise must belong to selected league', 400);
+    if (!rows.length)
+      throw new AppError(
+        "Favorite franchise must belong to selected league",
+        400,
+      );
   }
 
-  const lockInfo = await getFavoritePreferenceLockInfo({ userId, leagueSeasonId });
+  const lockInfo = await getFavoritePreferenceLockInfo({
+    userId,
+    leagueSeasonId,
+  });
 
   let existingRow = null;
   try {
@@ -534,15 +606,17 @@ const upsertFavoriteBonusPreferences = async ({
        FROM manager_bonus_preferences
        WHERE user_id = ? AND league_season_id = ?
        LIMIT 1`,
-      [Number(userId), leagueSeasonId]
+      [Number(userId), leagueSeasonId],
     );
     existingRow = rows[0] || null;
   } catch (error) {
-    if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+    if (error.code !== "ER_NO_SUCH_TABLE") throw error;
   }
 
   if (lockInfo.isLocked) {
-    const existingNationId = existingRow?.favorite_nation_id ? Number(existingRow.favorite_nation_id) : null;
+    const existingNationId = existingRow?.favorite_nation_id
+      ? Number(existingRow.favorite_nation_id)
+      : null;
     const existingFranchiseId = existingRow?.favorite_league_franchise_id
       ? Number(existingRow.favorite_league_franchise_id)
       : null;
@@ -550,7 +624,10 @@ const upsertFavoriteBonusPreferences = async ({
     const franchiseChanged = existingFranchiseId !== franchiseId;
 
     if (nationChanged || franchiseChanged) {
-      throw new AppError('Favorite nation and franchise are locked after your setup window closes', 400);
+      throw new AppError(
+        "Favorite nation and franchise are locked after your setup window closes",
+        400,
+      );
     }
 
     return getFavoriteBonusPreferences(userId, leagueSeasonId);
@@ -568,11 +645,14 @@ const upsertFavoriteBonusPreferences = async ({
          favorite_nation_id = VALUES(favorite_nation_id),
          favorite_league_franchise_id = VALUES(favorite_league_franchise_id),
          updated_at = CURRENT_TIMESTAMP`,
-      [Number(userId), leagueSeasonId, nationId, franchiseId]
+      [Number(userId), leagueSeasonId, nationId, franchiseId],
     );
   } catch (error) {
-    if (error.code === 'ER_NO_SUCH_TABLE') {
-      throw new AppError('Favorite bonus preferences table not found. Run database/schema.sql first', 400);
+    if (error.code === "ER_NO_SUCH_TABLE") {
+      throw new AppError(
+        "Favorite bonus preferences table not found. Run database/schema.sql first",
+        400,
+      );
     }
     throw error;
   }
@@ -587,7 +667,7 @@ const getFirstFixtureForLeague = async (leagueSeasonId) => {
      WHERE league_season_id = ?
      ORDER BY starts_at ASC, id ASC
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   return rows[0] || null;
@@ -601,27 +681,46 @@ const getUpcomingFixtureForLeague = async (leagueSeasonId, executor = pool) => {
        AND lock_at > NOW()
      ORDER BY starts_at ASC, id ASC
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   return rows[0] || null;
 };
 
-const hasExistingSquadInLeague = async ({ userId, leagueSeasonId, executor = pool }) => {
+const hasExistingSquadInLeague = async ({
+  userId,
+  leagueSeasonId,
+  executor = pool,
+}) => {
   const [rows] = await executor.query(
     `SELECT 1
      FROM manager_squads
      WHERE user_id = ? AND league_season_id = ?
      LIMIT 1`,
-    [Number(userId), leagueSeasonId]
+    [Number(userId), leagueSeasonId],
   );
 
   return rows.length > 0;
 };
 
-const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStartAt, tossAt, leagueSeasonId, userId }) => {
-  const locked = isSquadLocked({ fixtureStartAt, tossAt, lockMinutesBeforeToss: 15 });
-  const penalty = transferPenalty({ usedTransfers, freeTransfers, penaltyPerTransfer: 4 });
+const calculateTransferMeta = async ({
+  usedTransfers,
+  freeTransfers,
+  fixtureStartAt,
+  tossAt,
+  leagueSeasonId,
+  userId,
+}) => {
+  const locked = isSquadLocked({
+    fixtureStartAt,
+    tossAt,
+    lockMinutesBeforeToss: 15,
+  });
+  const penalty = transferPenalty({
+    usedTransfers,
+    freeTransfers,
+    penaltyPerTransfer: 4,
+  });
 
   if (!leagueSeasonId || !userId) {
     return { locked, penalty };
@@ -635,20 +734,30 @@ const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStar
      FROM fixtures
      WHERE league_season_id = ?
      ORDER BY starts_at ASC, id ASC`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   const now = new Date();
   const totalFixtures = fixtureRows.length;
-  const upcomingFixture = fixtureRows.find((row) => new Date(row.starts_at) > now) || null;
-  const upcomingMatchNo = upcomingFixture ? Number(upcomingFixture.match_no || 0) : 0;
-  const upcomingFixtureStartAt = upcomingFixture?.starts_at ? new Date(upcomingFixture.starts_at) : null;
+  const upcomingFixture =
+    fixtureRows.find((row) => new Date(row.starts_at) > now) || null;
+  const upcomingMatchNo = upcomingFixture
+    ? Number(upcomingFixture.match_no || 0)
+    : 0;
+  const upcomingFixtureStartAt = upcomingFixture?.starts_at
+    ? new Date(upcomingFixture.starts_at)
+    : null;
   const upcomingWindowCloseAt = upcomingFixtureStartAt
     ? new Date(upcomingFixtureStartAt.getTime() - 15 * 60 * 1000)
     : null;
 
-  const isPreLockWindowOpen = Boolean(upcomingWindowCloseAt && now < upcomingWindowCloseAt);
-  const effectiveCapMatchNo = Math.min(policy.leagueStageMatchCount || TOURNAMENT_TRANSFER_CAP_MATCH, TOURNAMENT_TRANSFER_CAP_MATCH);
+  const isPreLockWindowOpen = Boolean(
+    upcomingWindowCloseAt && now < upcomingWindowCloseAt,
+  );
+  const effectiveCapMatchNo = Math.min(
+    policy.leagueStageMatchCount || TOURNAMENT_TRANSFER_CAP_MATCH,
+    TOURNAMENT_TRANSFER_CAP_MATCH,
+  );
 
   const [usageRows] = await pool.query(
     `SELECT
@@ -661,15 +770,21 @@ const calculateTransferMeta = async ({ usedTransfers, freeTransfers, fixtureStar
        WHERE league_season_id = ?
      ) nf ON nf.id = ms.fixture_id
      WHERE ms.user_id = ?`,
-    [effectiveCapMatchNo, effectiveCapMatchNo, leagueSeasonId, userId]
+    [effectiveCapMatchNo, effectiveCapMatchNo, leagueSeasonId, userId],
   );
 
   const cappedUsed = Number(usageRows[0]?.capped_used || 0);
   const postCapUsed = Number(usageRows[0]?.post_cap_used || 0);
-  const transferCap = upcomingMatchNo > 0 && upcomingMatchNo <= effectiveCapMatchNo ? TOURNAMENT_TRANSFER_CAP : 0;
+  const transferCap =
+    upcomingMatchNo > 0 && upcomingMatchNo <= effectiveCapMatchNo
+      ? TOURNAMENT_TRANSFER_CAP
+      : 0;
   const transfersRemaining = Math.max(0, transferCap - cappedUsed);
 
-  const stage = upcomingMatchNo > effectiveCapMatchNo ? 'POST_MATCH_70' : 'UPCOMING_MATCH_WINDOW';
+  const stage =
+    upcomingMatchNo > effectiveCapMatchNo
+      ? "POST_MATCH_70"
+      : "UPCOMING_MATCH_WINDOW";
   const unlimited = false;
 
   return {
@@ -701,21 +816,30 @@ const applySquadTransfers = async ({
   captainId,
   viceCaptainId,
   impactPlayerId = null,
-  booster = 'NONE',
+  booster = "NONE",
   budgetCap = 100,
 }) => {
-  if (!userId) throw new AppError('User not found in request', 401);
-  if (!leagueSeasonId) throw new AppError('leagueSeasonId is required', 400);
-  if (!requestedFixtureId) throw new AppError('fixtureId is required', 400);
+  if (!userId) throw new AppError("User not found in request", 401);
+  if (!leagueSeasonId) throw new AppError("leagueSeasonId is required", 400);
+  if (!requestedFixtureId) throw new AppError("fixtureId is required", 400);
 
-  await validateSquadSelection({ playerIds, captainId, viceCaptainId, budgetCap, leagueSeasonId });
+  await validateSquadSelection({
+    playerIds,
+    captainId,
+    viceCaptainId,
+    budgetCap,
+    leagueSeasonId,
+  });
 
   const upcomingFixture = await getUpcomingFixtureForLeague(leagueSeasonId);
   if (!upcomingFixture) {
-    throw new AppError('No upcoming fixture found for this league', 404);
+    throw new AppError("No upcoming fixture found for this league", 404);
   }
 
-  const isExistingManager = await hasExistingSquadInLeague({ userId, leagueSeasonId });
+  const isExistingManager = await hasExistingSquadInLeague({
+    userId,
+    leagueSeasonId,
+  });
 
   const effectiveFixture = upcomingFixture;
   const meta = await calculateTransferMeta({
@@ -728,11 +852,17 @@ const applySquadTransfers = async ({
   });
 
   if (meta.locked) {
-    throw new AppError('Transfers are locked for the upcoming match (window closes 15 minutes before start).', 400);
+    throw new AppError(
+      "Transfers are locked for the upcoming match (window closes 15 minutes before start).",
+      400,
+    );
   }
 
   if (Number(requestedFixtureId) !== Number(upcomingFixture.id)) {
-    throw new AppError(`Transfers can only be applied to upcoming fixture ${upcomingFixture.id}`, 400);
+    throw new AppError(
+      `Transfers can only be applied to upcoming fixture ${upcomingFixture.id}`,
+      400,
+    );
   }
 
   const conn = await pool.getConnection();
@@ -744,7 +874,7 @@ const applySquadTransfers = async ({
        FROM manager_squads
        WHERE user_id = ? AND fixture_id = ?
        LIMIT 1`,
-      [userId, effectiveFixture.id]
+      [userId, effectiveFixture.id],
     );
 
     const existingSquad = existingSquadRows[0] || null;
@@ -755,7 +885,7 @@ const applySquadTransfers = async ({
         `SELECT player_id
          FROM manager_squad_players
          WHERE squad_id = ?`,
-        [existingSquad.id]
+        [existingSquad.id],
       );
       existingIds = existingPlayerRows.map((row) => Number(row.player_id));
     }
@@ -770,16 +900,23 @@ const applySquadTransfers = async ({
       }
     }
 
-    if (meta.transferCap !== null && transferDelta > Number(meta.transfersRemaining || 0)) {
+    if (
+      meta.transferCap !== null &&
+      transferDelta > Number(meta.transfersRemaining || 0)
+    ) {
       throw new AppError(
         `Transfer limit exceeded. Remaining transfers until Match ${TOURNAMENT_TRANSFER_CAP_MATCH}: ${Number(meta.transfersRemaining || 0)}`,
-        400
+        400,
       );
     }
 
     const selectedPlayers = await getPlayersByIds(playerIds, leagueSeasonId);
-    const totalSpent = selectedPlayers.reduce((sum, p) => sum + Number(p.credit_price || 0), 0);
-    const transfersUsed = Number(existingSquad?.transfers_used || 0) + transferDelta;
+    const totalSpent = selectedPlayers.reduce(
+      (sum, p) => sum + Number(p.credit_price || 0),
+      0,
+    );
+    const transfersUsed =
+      Number(existingSquad?.transfers_used || 0) + transferDelta;
 
     let squadId;
     if (!existingSquad) {
@@ -803,7 +940,7 @@ const applySquadTransfers = async ({
           viceCaptainId,
           impactPlayerId,
           booster,
-        ]
+        ],
       );
       squadId = insertSquad.insertId;
     } else {
@@ -823,17 +960,19 @@ const applySquadTransfers = async ({
           impactPlayerId,
           booster,
           squadId,
-        ]
+        ],
       );
     }
 
-    await conn.query('DELETE FROM manager_squad_players WHERE squad_id = ?', [squadId]);
-    const valueTuples = playerIds.map(() => '(?, ?, 1)').join(', ');
+    await conn.query("DELETE FROM manager_squad_players WHERE squad_id = ?", [
+      squadId,
+    ]);
+    const valueTuples = playerIds.map(() => "(?, ?, 1)").join(", ");
     const insertValues = playerIds.flatMap((id) => [squadId, Number(id)]);
     await conn.query(
       `INSERT INTO manager_squad_players (squad_id, player_id, is_starting_xi)
        VALUES ${valueTuples}`,
-      insertValues
+      insertValues,
     );
 
     const overallLeagueResult = await ensureUserInOverallLeague({
@@ -854,7 +993,10 @@ const applySquadTransfers = async ({
       stage: meta.stage,
       unlimited: meta.unlimited,
       isNewManagerSetup: !isExistingManager,
-      transfersRemainingAfterApply: Math.max(0, Number(meta.transfersRemaining || 0) - transferDelta),
+      transfersRemainingAfterApply: Math.max(
+        0,
+        Number(meta.transfersRemaining || 0) - transferDelta,
+      ),
       overallLeagueJoined: overallLeagueResult.joined,
       overallLeague: overallLeagueResult.league,
     };
@@ -866,16 +1008,27 @@ const applySquadTransfers = async ({
   }
 };
 
-const calculateLivePointsForPlayer = ({ stats, matchType = 'T20', isCaptain, isViceCaptain, booster }) => {
+const calculateLivePointsForPlayer = ({
+  stats,
+  matchType = "T20",
+  isCaptain,
+  isViceCaptain,
+  booster,
+}) => {
   const basePoints = calculateCricketFantasyPoints({ stats, matchType });
-  const boostedPoints = applyBooster({ basePoints, isCaptain, isViceCaptain, booster });
+  const boostedPoints = applyBooster({
+    basePoints,
+    isCaptain,
+    isViceCaptain,
+    booster,
+  });
   return { basePoints, boostedPoints };
 };
 
 // ─── Transfer Window Status ──────────────────────────────────────────────────
 
 const _fmtCountdown = (seconds) => {
-  if (seconds === null || seconds <= 0) return '0s';
+  if (seconds === null || seconds <= 0) return "0s";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
@@ -885,14 +1038,14 @@ const _fmtCountdown = (seconds) => {
 };
 
 const _resolveLeagueSeasonId = async (leagueSeasonIdentifier) => {
-  const raw = String(leagueSeasonIdentifier || '').trim();
-  if (!raw) throw new AppError('leagueSeasonId is required', 400);
+  const raw = String(leagueSeasonIdentifier || "").trim();
+  if (!raw) throw new AppError("leagueSeasonId is required", 400);
 
   const numericId = Number(raw);
   if (Number.isInteger(numericId) && numericId > 0) {
     const [rowsByNumeric] = await pool.query(
       `SELECT id FROM league_seasons WHERE id = ? LIMIT 1`,
-      [String(numericId)]
+      [String(numericId)],
     );
     if (rowsByNumeric.length) return String(rowsByNumeric[0].id);
   }
@@ -906,7 +1059,7 @@ const _resolveLeagueSeasonId = async (leagueSeasonIdentifier) => {
         OR REPLACE(CONCAT(c.short_name, '_', ls.year), ' ', '') = REPLACE(?, ' ', '')
      ORDER BY ls.id DESC
      LIMIT 1`,
-    [raw, raw]
+    [raw, raw],
   );
 
   if (!rows.length) {
@@ -932,20 +1085,20 @@ const getTransferWindowStatus = async (leagueSeasonId) => {
        AND status IN ('SCHEDULED','LIVE')
      ORDER BY starts_at ASC
      LIMIT 1`,
-    [leagueSeasonId]
+    [leagueSeasonId],
   );
 
   if (!fixtureRows.length) {
     return {
       leagueSeasonId: String(leagueSeasonId),
-      status: 'NO_UPCOMING_FIXTURE',
+      status: "NO_UPCOMING_FIXTURE",
       windowOpen: false,
       nextFixtureId: null,
       windowOpensAt: null,
       windowClosesAt: null,
       secondsToOpen: null,
       secondsToClose: null,
-      countdownLabel: 'No upcoming fixture',
+      countdownLabel: "No upcoming fixture",
     };
   }
 
@@ -955,27 +1108,29 @@ const getTransferWindowStatus = async (leagueSeasonId) => {
     ? new Date(fixture.transfer_window_opens_at)
     : null; // null → always open from creation (first fixture)
 
-  const alreadyLocked  = now >= lockAt;
-  const windowStarted  = !windowOpensAt || now >= windowOpensAt;
-  const windowOpen     = windowStarted && !alreadyLocked;
+  const alreadyLocked = now >= lockAt;
+  const windowStarted = !windowOpensAt || now >= windowOpensAt;
+  const windowOpen = windowStarted && !alreadyLocked;
 
-  const secondsToOpen  = windowOpensAt && !windowStarted
-    ? Math.ceil((windowOpensAt.getTime() - now.getTime()) / 1000)
-    : null;
+  const secondsToOpen =
+    windowOpensAt && !windowStarted
+      ? Math.ceil((windowOpensAt.getTime() - now.getTime()) / 1000)
+      : null;
 
   const secondsToClose = !alreadyLocked
     ? Math.ceil((lockAt.getTime() - now.getTime()) / 1000)
     : 0;
 
   let windowStatus;
-  if (alreadyLocked)       windowStatus = 'LOCKED';
-  else if (windowOpen)     windowStatus = 'OPEN';
-  else                     windowStatus = 'WAITING';
+  if (alreadyLocked) windowStatus = "LOCKED";
+  else if (windowOpen) windowStatus = "OPEN";
+  else windowStatus = "WAITING";
 
   let countdownLabel;
-  if (alreadyLocked)       countdownLabel = 'Transfer window is locked';
-  else if (windowOpen)     countdownLabel = `Window closes in ${_fmtCountdown(secondsToClose)}`;
-  else                     countdownLabel = `Window opens in ${_fmtCountdown(secondsToOpen)}`;
+  if (alreadyLocked) countdownLabel = "Transfer window is locked";
+  else if (windowOpen)
+    countdownLabel = `Window closes in ${_fmtCountdown(secondsToClose)}`;
+  else countdownLabel = `Window opens in ${_fmtCountdown(secondsToOpen)}`;
 
   return {
     leagueSeasonId: String(leagueSeasonId),
@@ -992,7 +1147,10 @@ const getTransferWindowStatus = async (leagueSeasonId) => {
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-const getPlayerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}) => {
+const getPlayerLeaderboard = async (
+  leagueSeasonIdentifier,
+  { limit = 100 } = {},
+) => {
   const leagueSeasonId = await _resolveLeagueSeasonId(leagueSeasonIdentifier);
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
 
@@ -1020,7 +1178,7 @@ const getPlayerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}
      GROUP BY p.id, p.full_name, p.role, team_code
      ORDER BY total_points DESC, avg_points DESC, p.full_name ASC
      LIMIT ?`,
-    [leagueSeasonId, leagueSeasonId, safeLimit]
+    [leagueSeasonId, leagueSeasonId, safeLimit],
   );
 
   let previousPoints = null;
@@ -1044,7 +1202,10 @@ const getPlayerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}
   });
 };
 
-const getManagerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {}) => {
+const getManagerLeaderboard = async (
+  leagueSeasonIdentifier,
+  { limit = 100 } = {},
+) => {
   const leagueSeasonId = await _resolveLeagueSeasonId(leagueSeasonIdentifier);
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
 
@@ -1066,7 +1227,7 @@ const getManagerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {
      GROUP BY u.id, u.name, u.email
      ORDER BY total_points DESC, matches DESC, u.name ASC
      LIMIT ?`,
-    [leagueSeasonId, safeLimit]
+    [leagueSeasonId, safeLimit],
   );
 
   let previousPoints = null;
@@ -1090,7 +1251,10 @@ const getManagerLeaderboard = async (leagueSeasonIdentifier, { limit = 100 } = {
   });
 };
 
-const getCombinedLeaderboard = async (leagueSeasonIdentifier, { playersLimit = 100, managersLimit = 100 } = {}) => {
+const getCombinedLeaderboard = async (
+  leagueSeasonIdentifier,
+  { playersLimit = 100, managersLimit = 100 } = {},
+) => {
   const [players, managers] = await Promise.all([
     getPlayerLeaderboard(leagueSeasonIdentifier, { limit: playersLimit }),
     getManagerLeaderboard(leagueSeasonIdentifier, { limit: managersLimit }),
@@ -1119,30 +1283,33 @@ const finalizeMatchPoints = async (fixtureId) => {
     // 1. Validate fixture
     const [fixtureRows] = await conn.query(
       `SELECT id, league_season_id, match_type, status FROM fixtures WHERE id = ? LIMIT 1`,
-      [Number(fixtureId)]
+      [Number(fixtureId)],
     );
-    if (!fixtureRows.length) throw new AppError('Fixture not found', 404);
+    if (!fixtureRows.length) throw new AppError("Fixture not found", 404);
     const fixture = fixtureRows[0];
-    if (fixture.status !== 'COMPLETED') {
-      throw new AppError('Cannot finalize points: fixture is not COMPLETED', 400);
+    if (fixture.status !== "COMPLETED") {
+      throw new AppError(
+        "Cannot finalize points: fixture is not COMPLETED",
+        400,
+      );
     }
 
     // 2. Compute base fantasy points per player
     const [statsRows] = await conn.query(
       `SELECT * FROM player_live_stats WHERE fixture_id = ?`,
-      [Number(fixtureId)]
+      [Number(fixtureId)],
     );
 
     const playerPointsMap = {};
     for (const row of statsRows) {
       const pts = calculateCricketFantasyPoints({
         stats: row,
-        matchType: fixture.match_type || 'T20',
+        matchType: fixture.match_type || "T20",
       });
       playerPointsMap[Number(row.player_id)] = pts;
       await conn.query(
         `UPDATE player_live_stats SET fantasy_points = ? WHERE fixture_id = ? AND player_id = ?`,
-        [pts, Number(fixtureId), Number(row.player_id)]
+        [pts, Number(fixtureId), Number(row.player_id)],
       );
     }
 
@@ -1151,15 +1318,17 @@ const finalizeMatchPoints = async (fixtureId) => {
       `SELECT id, user_id, league_season_id, captain_player_id, vice_captain_player_id, booster
        FROM manager_squads
        WHERE fixture_id = ?`,
-      [Number(fixtureId)]
+      [Number(fixtureId)],
     );
 
-    const squadUserIds = Array.from(new Set(squadRows.map((row) => Number(row.user_id))));
+    const squadUserIds = Array.from(
+      new Set(squadRows.map((row) => Number(row.user_id))),
+    );
     const favoriteByUser = new Map();
 
     if (squadUserIds.length) {
       try {
-        const placeholders = squadUserIds.map(() => '?').join(',');
+        const placeholders = squadUserIds.map(() => "?").join(",");
         const [favoriteRows] = await conn.query(
           `SELECT
               mbp.user_id,
@@ -1171,7 +1340,7 @@ const finalizeMatchPoints = async (fixtureId) => {
            LEFT JOIN league_franchises lf ON lf.id = mbp.favorite_league_franchise_id
            WHERE mbp.league_season_id = ?
              AND mbp.user_id IN (${placeholders})`,
-          [fixture.league_season_id, ...squadUserIds]
+          [fixture.league_season_id, ...squadUserIds],
         );
 
         for (const row of favoriteRows) {
@@ -1184,7 +1353,7 @@ const finalizeMatchPoints = async (fixtureId) => {
           });
         }
       } catch (error) {
-        if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+        if (error.code !== "ER_NO_SUCH_TABLE") throw error;
       }
     }
 
@@ -1206,17 +1375,18 @@ const finalizeMatchPoints = async (fixtureId) => {
          LEFT JOIN league_franchises lf ON lf.id = lsp.league_franchise_id
          LEFT JOIN franchises f ON f.id = p.franchise_id
          WHERE msp.squad_id = ? AND msp.is_starting_xi = 1`,
-        [squad.league_season_id || fixture.league_season_id, squad.id]
+        [squad.league_season_id || fixture.league_season_id, squad.id],
       );
 
       let squadTotal = 0;
-      const favoritePreference = favoriteByUser.get(Number(squad.user_id)) || null;
+      const favoritePreference =
+        favoriteByUser.get(Number(squad.user_id)) || null;
 
       for (const sp of squadPlayers) {
-        const playerId   = Number(sp.player_id);
+        const playerId = Number(sp.player_id);
         const basePoints = playerPointsMap[playerId] ?? 0;
-        const isCaptain  = playerId === Number(squad.captain_player_id);
-        const isViceCap  = playerId === Number(squad.vice_captain_player_id);
+        const isCaptain = playerId === Number(squad.captain_player_id);
+        const isViceCap = playerId === Number(squad.vice_captain_player_id);
 
         let playerPoints = applyBooster({
           basePoints,
@@ -1227,17 +1397,20 @@ const finalizeMatchPoints = async (fixtureId) => {
 
         if (favoritePreference) {
           const nationMatched =
-            favoritePreference.favoriteNation
-            && normalizeText(sp.country) === normalizeText(favoritePreference.favoriteNation);
+            favoritePreference.favoriteNation &&
+            normalizeText(sp.country) ===
+              normalizeText(favoritePreference.favoriteNation);
 
           const franchiseMatchedById =
-            favoritePreference.favoriteLeagueFranchiseId
-            && Number(sp.league_franchise_id) === Number(favoritePreference.favoriteLeagueFranchiseId);
+            favoritePreference.favoriteLeagueFranchiseId &&
+            Number(sp.league_franchise_id) ===
+              Number(favoritePreference.favoriteLeagueFranchiseId);
 
           const franchiseMatchedByCode =
-            !franchiseMatchedById
-            && favoritePreference.favoriteTeamCode
-            && normalizeText(sp.team_code) === normalizeText(favoritePreference.favoriteTeamCode);
+            !franchiseMatchedById &&
+            favoritePreference.favoriteTeamCode &&
+            normalizeText(sp.team_code) ===
+              normalizeText(favoritePreference.favoriteTeamCode);
 
           if (nationMatched) {
             playerPoints *= FAVORITE_NATION_MULTIPLIER;
@@ -1250,7 +1423,7 @@ const finalizeMatchPoints = async (fixtureId) => {
 
         await conn.query(
           `UPDATE manager_squad_players SET fantasy_points = ? WHERE squad_id = ? AND player_id = ?`,
-          [Number(playerPoints.toFixed(2)), squad.id, playerId]
+          [Number(playerPoints.toFixed(2)), squad.id, playerId],
         );
 
         squadTotal += playerPoints;
@@ -1258,23 +1431,23 @@ const finalizeMatchPoints = async (fixtureId) => {
 
       await conn.query(
         `UPDATE manager_squads SET points_total = ? WHERE id = ?`,
-        [Number(squadTotal.toFixed(2)), squad.id]
+        [Number(squadTotal.toFixed(2)), squad.id],
       );
     }
 
     const finalizedAt = new Date();
     await conn.query(
       `UPDATE fixtures SET points_finalized_at = ? WHERE id = ?`,
-      [finalizedAt, Number(fixtureId)]
+      [finalizedAt, Number(fixtureId)],
     );
 
     await conn.commit();
     return {
-      fixtureId:        Number(fixtureId),
-      leagueSeasonId:   String(fixture.league_season_id),
-      matchType:        fixture.match_type,
+      fixtureId: Number(fixtureId),
+      leagueSeasonId: String(fixture.league_season_id),
+      matchType: fixture.match_type,
       playersProcessed: statsRows.length,
-      squadsProcessed:  squadRows.length,
+      squadsProcessed: squadRows.length,
       pointsFinalizedAt: finalizedAt.toISOString(),
       multipliersApplied: {
         favoriteNation: FAVORITE_NATION_MULTIPLIER,
@@ -1291,16 +1464,36 @@ const finalizeMatchPoints = async (fixtureId) => {
 
 const predictionPoints = ({ predicted, actual }) => {
   let points = 0;
-  if (predicted.tossWinnerId && predicted.tossWinnerId === actual.tossWinnerId) points += 5;
-  if (predicted.matchWinnerId && predicted.matchWinnerId === actual.matchWinnerId) points += 10;
-  if (predicted.motmPlayerId && predicted.motmPlayerId === actual.motmPlayerId) points += 12;
-  if (predicted.topScorerId && predicted.topScorerId === actual.topScorerId) points += 8;
-  if (predicted.topWicketTakerId && predicted.topWicketTakerId === actual.topWicketTakerId) points += 8;
+  if (predicted.tossWinnerId && predicted.tossWinnerId === actual.tossWinnerId)
+    points += 5;
+  if (
+    predicted.matchWinnerId &&
+    predicted.matchWinnerId === actual.matchWinnerId
+  )
+    points += 10;
+  if (predicted.motmPlayerId && predicted.motmPlayerId === actual.motmPlayerId)
+    points += 12;
+  if (predicted.topScorerId && predicted.topScorerId === actual.topScorerId)
+    points += 8;
+  if (
+    predicted.topWicketTakerId &&
+    predicted.topWicketTakerId === actual.topWicketTakerId
+  )
+    points += 8;
   return points;
 };
 
-const quizPoints = ({ selectedOption, correctOption, answeredAt, startsAt, endsAt, maxPoints = 5 }) => {
-  const inWindow = new Date(answeredAt) >= new Date(startsAt) && new Date(answeredAt) <= new Date(endsAt);
+const quizPoints = ({
+  selectedOption,
+  correctOption,
+  answeredAt,
+  startsAt,
+  endsAt,
+  maxPoints = 5,
+}) => {
+  const inWindow =
+    new Date(answeredAt) >= new Date(startsAt) &&
+    new Date(answeredAt) <= new Date(endsAt);
   if (!inWindow) return 0;
   return selectedOption === correctOption ? maxPoints : 0;
 };

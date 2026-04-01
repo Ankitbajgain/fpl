@@ -1,4 +1,4 @@
-import { modeOptions } from '../../constants/gameConfig'
+import { modeOptions } from "../../constants/gameConfig";
 
 export function GameModeSelector({ mode, onModeChange }) {
   return (
@@ -11,8 +11,8 @@ export function GameModeSelector({ mode, onModeChange }) {
             onClick={() => onModeChange(item)}
             className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
               mode === item
-                ? 'bg-[#0e6f59] text-white'
-                : 'bg-[#f4ede3] text-[#354252] hover:bg-[#ece2d4]'
+                ? "bg-[#0b2b57] text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             {item}
@@ -20,5 +20,5 @@ export function GameModeSelector({ mode, onModeChange }) {
         ))}
       </div>
     </div>
-  )
+  );
 }

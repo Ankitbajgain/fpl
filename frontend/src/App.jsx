@@ -1,40 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useEffect, useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  clearValidationState,
-  setPlayers,
-  setSelectedIds,
-  setValidationError,
-  setValidationResult,
-  setMode,
-  togglePlayer,
-  clearAuthSession,
-} from './features/squad/squadSlice'
-import { useAuth } from './hooks/useAuth'
-import { AuthPanel } from './components/Auth/AuthPanel'
-import { Header } from './components/Header/Header'
-import { Sidebar } from './components/Sidebar/Sidebar'
-import { PlayerPool } from './components/PlayerPool/PlayerPool'
-import { LeagueSelector } from './components/LeagueSelector/LeagueSelector'
-import { LeagueHeader } from './components/LeagueSelector/LeagueHeader'
-import { FixtureSelector } from './components/LeagueSelector/FixtureSelector'
-import { PrivateLeaguePanel } from './components/LeagueSelector/PrivateLeaguePanel'
-import { FavoriteBonusPanel } from './components/LeagueSelector/FavoriteBonusPanel'
+    Navigate,
+    Route,
+    BrowserRouter as Router,
+    Routes,
+    useNavigate,
+} from "react-router-dom";
+import { AuthPanel } from "./components/Auth/AuthPanel";
+import { Navbar } from "./components/Common/Navbar";
+import { Header } from "./components/Header/Header";
+import { LeaderboardPage } from "./components/Leaderboard/LeaderboardPage";
+import { FavoriteBonusPanel } from "./components/LeagueSelector/FavoriteBonusPanel";
+import { FixtureSelector } from "./components/LeagueSelector/FixtureSelector";
+import { LeagueSelector } from "./components/LeagueSelector/LeagueSelector";
+import { PlayerPool } from "./components/PlayerPool/PlayerPool";
+import { PrivateLeagues } from "./components/PrivateLeagues/PrivateLeagues";
+import { budgetCap, roleKeys, roleRules } from "./constants/gameConfig";
 import {
-  getHomeCountry,
-  getUniqueTeams,
-  filterPlayersByRole,
-  applyHomeAwayFilter,
-  applyTeamFilter,
-  sortByCredits,
-  searchPlayers,
-  sortSelectedPlayersFirst,
-} from './utils/playerFiltering'
-import { calculateFormation, generateValidRoleCombinations } from './utils/formation'
-import { budgetCap, roleKeys, roleRules } from './constants/gameConfig'
+    clearAuthSession,
+    clearValidationState,
+    selectLeague,
+    setMode,
+    setPlayers,
+    setSelectedIds,
+    setValidationError,
+    setValidationResult,
+    togglePlayer,
+} from "./features/squad/squadSlice";
+import { useAuth } from "./hooks/useAuth";
+import { generateValidRoleCombinations } from "./utils/formation";
+import {
+    applyHomeAwayFilter,
+    applyTeamFilter,
+    filterPlayersByRole,
+    getHomeCountry,
+    getUniqueTeams,
+    searchPlayers,
+    sortByCredits,
+} from "./utils/playerFiltering";
 
 function App() {
-  const dispatch = useDispatch()
+  const dispatch = useDispatch();
   const {
     players,
     selectedIds,
@@ -43,7 +50,7 @@ function App() {
     validationError,
     selectedLeagueSeason,
     leagues,
-  } = useSelector((state) => state.squad)
+  } = useSelector((state) => state.squad);
 
   // Auth hook
   const {
@@ -56,211 +63,181 @@ function App() {
     handleRegister,
     restoreSession,
     handleLogout: authLogout,
-  } = useAuth()
+  } = useAuth();
 
   // UI state
-  const [activeRoleTab, setActiveRoleTab] = useState('SELECTED')
-  const [playersLoading, setPlayersLoading] = useState(false)
-  const [playersError, setPlayersError] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [creditSort, setCreditSort] = useState('desc')
-  const [homeAwayFilter, setHomeAwayFilter] = useState('all')
-  const [teamFilter, setTeamFilter] = useState('')
-  const [selectionMessage, setSelectionMessage] = useState('')
-  const [validateLoading, setValidateLoading] = useState(false)
-  const [applyLoading, setApplyLoading] = useState(false)
-  const [applyMessage, setApplyMessage] = useState('')
-  const [transferMeta, setTransferMeta] = useState(null)
-  const [transferMetaLoading, setTransferMetaLoading] = useState(false)
-  const [transferMetaError, setTransferMetaError] = useState('')
-  const [transferPolicy, setTransferPolicy] = useState(null)
-  const [transferPolicyLoading, setTransferPolicyLoading] = useState(false)
-  const [transferPolicyError, setTransferPolicyError] = useState('')
-  const [transferWindowStatus, setTransferWindowStatus] = useState(null)
-  const [playerLeaderboard, setPlayerLeaderboard] = useState([])
-  const [managerLeaderboard, setManagerLeaderboard] = useState([])
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
-  const [managerLeaderboardLoading, setManagerLeaderboardLoading] = useState(false)
-  const [leaderboardError, setLeaderboardError] = useState('')
-  const [managerLeaderboardError, setManagerLeaderboardError] = useState('')
-  const [captainId, setCaptainId] = useState(selectedIds[0] ?? '')
-  const [viceCaptainId, setViceCaptainId] = useState(selectedIds[1] ?? '')
-  const [authNotice, setAuthNotice] = useState('')
-  const [selectedFixture, setSelectedFixture] = useState(null)
+  const [activeRoleTab, setActiveRoleTab] = useState("BAT");
+  const [playersLoading, setPlayersLoading] = useState(false);
+  const [playersError, setPlayersError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [creditSort, setCreditSort] = useState("desc");
+  const [homeAwayFilter, setHomeAwayFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [selectionMessage, setSelectionMessage] = useState("");
+  const [validateLoading, setValidateLoading] = useState(false);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyMessage, setApplyMessage] = useState("");
+  const [transferMeta, setTransferMeta] = useState(null);
+  const [transferMetaLoading, setTransferMetaLoading] = useState(false);
+  const [transferMetaError, setTransferMetaError] = useState("");
+  const [transferPolicy, setTransferPolicy] = useState(null);
+  const [transferPolicyLoading, setTransferPolicyLoading] = useState(false);
+  const [transferPolicyError, setTransferPolicyError] = useState("");
+  const [transferWindowStatus, setTransferWindowStatus] = useState(null);
+  const [captainId, setCaptainId] = useState(selectedIds[0] ?? "");
+  const [viceCaptainId, setViceCaptainId] = useState(selectedIds[1] ?? "");
+  const [authNotice, setAuthNotice] = useState("");
+  const [selectedFixture, setSelectedFixture] = useState(null);
 
   // Computed values
   const selectedPlayers = useMemo(
     () => players.filter((player) => selectedIds.includes(player.id)),
     [players, selectedIds],
-  )
+  );
 
   const roleCounts = useMemo(
     () =>
       selectedPlayers.reduce(
         (counts, player) => {
-          counts[player.role] += 1
-          return counts
+          counts[player.role] += 1;
+          return counts;
         },
         { WK: 0, BAT: 0, AR: 0, BOWL: 0 },
       ),
     [selectedPlayers],
-  )
+  );
 
   const selectedLeague = useMemo(
     () => leagues.find((league) => league.id === selectedLeagueSeason) || null,
     [leagues, selectedLeagueSeason],
-  )
+  );
 
-  const homeCountry = useMemo(() => getHomeCountry(mode, selectedLeague?.nation), [mode, selectedLeague])
-  const allTeams = useMemo(() => getUniqueTeams(players), [players])
+  const homeCountry = useMemo(
+    () => getHomeCountry(mode, selectedLeague?.nation),
+    [mode, selectedLeague],
+  );
+  const allTeams = useMemo(() => getUniqueTeams(players), [players]);
 
   const filteredPlayers = useMemo(() => {
-    if (activeRoleTab === 'SELECTED') return selectedPlayers
+    let list = filterPlayersByRole(players, activeRoleTab);
+    list = applyHomeAwayFilter(list, mode, homeAwayFilter, homeCountry);
+    list = applyTeamFilter(list, teamFilter);
+    list = sortByCredits(list, creditSort);
 
-    let list = filterPlayersByRole(players, activeRoleTab)
-    list = applyHomeAwayFilter(list, mode, homeAwayFilter, homeCountry)
-    list = applyTeamFilter(list, teamFilter)
-    list = sortByCredits(list, creditSort)
+    return list;
+  }, [
+    activeRoleTab,
+    players,
+    selectedPlayers,
+    mode,
+    homeAwayFilter,
+    teamFilter,
+    creditSort,
+    homeCountry,
+  ]);
 
-    return list
-  }, [activeRoleTab, players, selectedPlayers, mode, homeAwayFilter, teamFilter, creditSort, homeCountry])
+  const displayedPlayers = useMemo(
+    () => searchPlayers(filteredPlayers, searchQuery),
+    [filteredPlayers, searchQuery],
+  );
 
-  const displayedPlayers = useMemo(() => {
-    if (activeRoleTab === 'SELECTED') {
-      return sortSelectedPlayersFirst(filteredPlayers, selectedIds)
-    }
-    return searchPlayers(filteredPlayers, searchQuery)
-  }, [activeRoleTab, filteredPlayers, searchQuery, selectedIds])
-
-  const creditsUsed = selectedPlayers.reduce((sum, player) => sum + player.credits, 0)
-  const creditsLeft = Math.max(0, budgetCap - creditsUsed)
+  const creditsUsed = selectedPlayers.reduce(
+    (sum, player) => sum + player.credits,
+    0,
+  );
+  const creditsLeft = Math.max(0, budgetCap - creditsUsed);
 
   // Effects
   useEffect(() => {
-    restoreSession()
-  }, [])
+    restoreSession();
+  }, []);
 
   useEffect(() => {
-    setSelectedFixture(null)
-    setTransferMeta(null)
-    setTransferMetaError('')
-    setTransferPolicy(null)
-    setTransferPolicyError('')
-    setApplyMessage('')
-    setTransferWindowStatus(null)
-    setPlayerLeaderboard([])
-    setManagerLeaderboard([])
-    setLeaderboardError('')
-    setManagerLeaderboardError('')
-  }, [selectedLeagueSeason])
+    setSelectedFixture(null);
+    setTransferMeta(null);
+    setTransferMetaError("");
+    setTransferPolicy(null);
+    setTransferPolicyError("");
+    setApplyMessage("");
+    setTransferWindowStatus(null);
+    setSelectionMessage("");
+    setActiveRoleTab("BAT");
+    setSearchQuery("");
+    setHomeAwayFilter("all");
+    setTeamFilter("");
+  }, [selectedLeagueSeason]);
 
   useEffect(() => {
     const fetchTransferPolicy = async () => {
-      if (!authToken || !selectedLeagueSeason) return
+      if (!authToken || !selectedLeagueSeason) return;
 
-      setTransferPolicyLoading(true)
-      setTransferPolicyError('')
+      setTransferPolicyLoading(true);
+      setTransferPolicyError("");
 
       try {
-        const response = await fetch(`/api/v1/gameplay/leagues/${selectedLeagueSeason}/transfers/policy`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        })
-        const payload = await response.json()
+        const response = await fetch(
+          `/api/v1/gameplay/leagues/${selectedLeagueSeason}/transfers/policy`,
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          },
+        );
+        const payload = await response.json();
 
         if (!response.ok || !payload.success) {
-          setTransferPolicyError(payload.message || 'Unable to load transfer policy')
-          setTransferPolicyLoading(false)
-          return
+          setTransferPolicyError(
+            payload.message || "Unable to load transfer policy",
+          );
+          setTransferPolicyLoading(false);
+          return;
         }
 
-        setTransferPolicy(payload.data)
-        setTransferPolicyLoading(false)
+        setTransferPolicy(payload.data);
+        setTransferPolicyLoading(false);
       } catch {
-        setTransferPolicyError('Network error while loading transfer policy')
-        setTransferPolicyLoading(false)
+        setTransferPolicyError("Network error while loading transfer policy");
+        setTransferPolicyLoading(false);
       }
-    }
+    };
 
-    fetchTransferPolicy()
-  }, [authToken, selectedLeagueSeason])
+    fetchTransferPolicy();
+  }, [authToken, selectedLeagueSeason]);
 
   // Poll real-time transfer window status every 10 s
   useEffect(() => {
-    let intervalId
+    let intervalId;
     const fetchWindowStatus = async () => {
-      if (!authToken || !selectedLeagueSeason) return
+      if (!authToken || !selectedLeagueSeason) return;
       try {
         const response = await fetch(
           `/api/v1/gameplay/leagues/${selectedLeagueSeason}/transfer-window`,
           { headers: { Authorization: `Bearer ${authToken}` } },
-        )
-        const payload = await response.json()
-        if (response.ok && payload.success) setTransferWindowStatus(payload.data)
-      } catch { /* silent */ }
-    }
-    if (authToken && selectedLeagueSeason) {
-      fetchWindowStatus()
-      intervalId = setInterval(fetchWindowStatus, 10000)
-    }
-    return () => clearInterval(intervalId)
-  }, [authToken, selectedLeagueSeason])
-
-  // Poll combined leaderboard every 20 s
-  useEffect(() => {
-    let intervalId
-
-    const fetchLeaderboard = async () => {
-      if (!authToken || !selectedLeagueSeason) return
-
-      setLeaderboardLoading(true)
-      setManagerLeaderboardLoading(true)
-      setLeaderboardError('')
-      setManagerLeaderboardError('')
-      try {
-        const response = await fetch(
-          `/api/v1/gameplay/leagues/${selectedLeagueSeason}/leaderboard?playersLimit=10&managersLimit=10`,
-          { headers: { Authorization: `Bearer ${authToken}` } },
-        )
-        const payload = await response.json()
-        if (!response.ok || !payload.success) {
-          setLeaderboardError(payload.message || 'Unable to load leaderboard')
-          setManagerLeaderboardError(payload.message || 'Unable to load manager leaderboard')
-          setLeaderboardLoading(false)
-          setManagerLeaderboardLoading(false)
-          return
-        }
-        setPlayerLeaderboard(Array.isArray(payload.data?.players) ? payload.data.players : [])
-        setManagerLeaderboard(Array.isArray(payload.data?.managers) ? payload.data.managers : [])
-        setLeaderboardLoading(false)
-        setManagerLeaderboardLoading(false)
+        );
+        const payload = await response.json();
+        if (response.ok && payload.success)
+          setTransferWindowStatus(payload.data);
       } catch {
-        setLeaderboardError('Network error while loading leaderboard')
-        setManagerLeaderboardError('Network error while loading manager leaderboard')
-        setLeaderboardLoading(false)
-        setManagerLeaderboardLoading(false)
+        /* silent */
       }
-    }
-
+    };
     if (authToken && selectedLeagueSeason) {
-      fetchLeaderboard()
-      intervalId = setInterval(fetchLeaderboard, 20000)
+      fetchWindowStatus();
+      intervalId = setInterval(fetchWindowStatus, 10000);
     }
-
-    return () => clearInterval(intervalId)
-  }, [authToken, selectedLeagueSeason])
+    return () => clearInterval(intervalId);
+  }, [authToken, selectedLeagueSeason]);
 
   useEffect(() => {
     const fetchTransferMeta = async () => {
-      if (!authToken || !selectedLeagueSeason || !selectedFixture) return
+      if (!authToken || !selectedLeagueSeason || !selectedFixture) return;
 
-      setTransferMetaLoading(true)
-      setTransferMetaError('')
+      setTransferMetaLoading(true);
+      setTransferMetaError("");
 
       try {
-        const response = await fetch('/api/v1/gameplay/transfers/meta', {
-          method: 'POST',
+        const response = await fetch("/api/v1/gameplay/transfers/meta", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
@@ -270,232 +247,296 @@ function App() {
             tossAt: selectedFixture.tossAt,
             leagueSeasonId: selectedLeagueSeason,
           }),
-        })
+        });
 
-        const payload = await response.json()
+        const payload = await response.json();
         if (!response.ok || !payload.success) {
-          setTransferMetaError(payload.message || 'Unable to fetch transfer window details')
-          setTransferMetaLoading(false)
-          return
+          setTransferMetaError(
+            payload.message || "Unable to fetch transfer window details",
+          );
+          setTransferMetaLoading(false);
+          return;
         }
 
-        setTransferMeta(payload.data)
-        setTransferMetaLoading(false)
+        setTransferMeta(payload.data);
+        setTransferMetaLoading(false);
       } catch {
-        setTransferMetaError('Network error while loading transfer details')
-        setTransferMetaLoading(false)
+        setTransferMetaError("Network error while loading transfer details");
+        setTransferMetaLoading(false);
       }
-    }
+    };
 
-    fetchTransferMeta()
-  }, [authToken, selectedLeagueSeason, selectedFixture])
+    fetchTransferMeta();
+  }, [authToken, selectedLeagueSeason, selectedFixture]);
 
   useEffect(() => {
     const fetchPlayers = async () => {
-      if (!authToken || !selectedLeagueSeason) return
+      if (!authToken || !selectedLeagueSeason) return;
 
-      setPlayersLoading(true)
-      setPlayersError('')
+      setPlayersLoading(true);
+      setPlayersError("");
 
       try {
-        const response = await fetch(`/api/v1/gameplay/leagues/${selectedLeagueSeason}/players`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        })
+        const response = await fetch(
+          `/api/v1/gameplay/leagues/${selectedLeagueSeason}/players`,
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          },
+        );
 
-        const payload = await response.json()
+        const payload = await response.json();
         if (!response.ok || !payload.success || !Array.isArray(payload.data)) {
-          setPlayersError(payload.message || 'Unable to load players list')
-          setPlayersLoading(false)
-          return
+          setPlayersError(payload.message || "Unable to load players list");
+          setPlayersLoading(false);
+          return;
         }
 
-        dispatch(setPlayers(payload.data))
-        setPlayersLoading(false)
+        dispatch(setPlayers(payload.data));
+        setPlayersLoading(false);
       } catch {
-        setPlayersError('Network error while loading players')
-        setPlayersLoading(false)
+        setPlayersError("Network error while loading players");
+        setPlayersLoading(false);
       }
-    }
+    };
 
-    fetchPlayers()
-  }, [authToken, selectedLeagueSeason, dispatch])
+    fetchPlayers();
+  }, [authToken, selectedLeagueSeason, dispatch]);
 
   useEffect(() => {
     if (!selectedIds.length) {
-      setCaptainId('')
-      setViceCaptainId('')
-      return
+      setCaptainId("");
+      setViceCaptainId("");
+      return;
     }
 
     if (!selectedIds.includes(Number(captainId))) {
-      setCaptainId(selectedIds[0])
+      setCaptainId(selectedIds[0]);
     }
 
-    if (!selectedIds.includes(Number(viceCaptainId)) || Number(viceCaptainId) === Number(captainId)) {
-      const fallbackVice = selectedIds.find((id) => id !== Number(captainId)) ?? selectedIds[0]
-      setViceCaptainId(fallbackVice)
+    if (
+      !selectedIds.includes(Number(viceCaptainId)) ||
+      Number(viceCaptainId) === Number(captainId)
+    ) {
+      const fallbackVice =
+        selectedIds.find((id) => id !== Number(captainId)) ?? selectedIds[0];
+      setViceCaptainId(fallbackVice);
     }
-  }, [captainId, selectedIds, viceCaptainId])
+  }, [captainId, selectedIds, viceCaptainId]);
 
   // Handlers
   const handleTogglePlayer = (player) => {
-    const selected = selectedIds.includes(player.id)
+    const selected = selectedIds.includes(player.id);
 
     if (selected) {
-      dispatch(togglePlayer(player.id))
-      setSelectionMessage('')
-      return
+      dispatch(togglePlayer(player.id));
+      setSelectionMessage("");
+      return;
     }
 
     if (selectedIds.length >= 11) {
-      setSelectionMessage('You can select maximum 11 players.')
-      return
+      setSelectionMessage("You can select maximum 11 players.");
+      return;
     }
 
-    const rule = roleRules[player.role]
+    const rule = roleRules[player.role];
     if (rule && roleCounts[player.role] >= rule.max) {
-      setSelectionMessage(`${player.role} can be maximum ${rule.max}.`)
-      return
+      setSelectionMessage(`${player.role} can be maximum ${rule.max}.`);
+      return;
     }
 
-    const normalizedName = String(player.name || '').trim().toLowerCase()
+    const normalizedName = String(player.name || "")
+      .trim()
+      .toLowerCase();
     const hasSameName = selectedPlayers.some(
       (selectedPlayer) =>
-        selectedPlayer.id !== player.id && String(selectedPlayer.name || '').trim().toLowerCase() === normalizedName,
-    )
+        selectedPlayer.id !== player.id &&
+        String(selectedPlayer.name || "")
+          .trim()
+          .toLowerCase() === normalizedName,
+    );
     if (hasSameName) {
-      setSelectionMessage('Duplicate player is not allowed in squad.')
-      return
+      setSelectionMessage("Duplicate player is not allowed in squad.");
+      return;
     }
 
-    const normalizeCountry = (value) => String(value || '').trim().toLowerCase()
+    const normalizeCountry = (value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase();
     const awayCount = selectedPlayers.filter(
-      (selectedPlayer) => normalizeCountry(selectedPlayer.country) !== normalizeCountry(homeCountry),
-    ).length
-    const nextIsAway = normalizeCountry(player.country) !== normalizeCountry(homeCountry)
-    if (mode === 'Classic' && nextIsAway && awayCount >= 4) {
-      setSelectionMessage('Maximum 4 away players are allowed.')
-      return
+      (selectedPlayer) =>
+        normalizeCountry(selectedPlayer.country) !==
+        normalizeCountry(homeCountry),
+    ).length;
+    const nextIsAway =
+      normalizeCountry(player.country) !== normalizeCountry(homeCountry);
+    if (mode === "Classic" && nextIsAway && awayCount >= 4) {
+      setSelectionMessage("Maximum 4 away players are allowed.");
+      return;
     }
 
     const sameTeamCount = selectedPlayers.filter(
-      (selectedPlayer) => String(selectedPlayer.team || '').trim().toLowerCase() === String(player.team || '').trim().toLowerCase(),
-    ).length
+      (selectedPlayer) =>
+        String(selectedPlayer.team || "")
+          .trim()
+          .toLowerCase() ===
+        String(player.team || "")
+          .trim()
+          .toLowerCase(),
+    ).length;
     if (sameTeamCount >= 7) {
-      setSelectionMessage(`Maximum 7 players are allowed from ${player.team}.`)
-      return
+      setSelectionMessage(`Maximum 7 players are allowed from ${player.team}.`);
+      return;
     }
 
     if (creditsUsed + player.credits > budgetCap) {
-      setSelectionMessage(`Budget exceeded. Total cannot be above ${budgetCap} credits.`)
-      return
+      setSelectionMessage(
+        `Budget exceeded. Total cannot be above ${budgetCap} credits.`,
+      );
+      return;
     }
 
-    dispatch(togglePlayer(player.id))
-    setSelectionMessage('')
-  }
+    dispatch(togglePlayer(player.id));
+    setSelectionMessage("");
+  };
 
   const handleAutoSelectPlayers = () => {
     if (players.length < 11) {
-      setSelectionMessage('Not enough players to auto select 11.')
-      return
+      setSelectionMessage("Not enough players to auto select 11.");
+      return;
     }
 
     const rolePlayers = roleKeys.reduce((acc, role) => {
-      acc[role] = players.filter((player) => player.role === role)
-      return acc
-    }, {})
+      acc[role] = players.filter((player) => player.role === role);
+      return acc;
+    }, {});
 
     for (const role of roleKeys) {
       if (rolePlayers[role].length < roleRules[role].min) {
-        setSelectionMessage(`Not enough ${role} players to satisfy minimum ${roleRules[role].min}.`)
-        return
+        setSelectionMessage(
+          `Not enough ${role} players to satisfy minimum ${roleRules[role].min}.`,
+        );
+        return;
       }
     }
 
-    const validRoleCombinations = generateValidRoleCombinations(roleRules)
+    const validRoleCombinations = generateValidRoleCombinations(roleRules);
 
-    let bestSelection = null
-    let bestTotal = 0
+    let bestSelection = null;
+    let bestTotal = 0;
 
     for (let attempt = 0; attempt < 3000; attempt += 1) {
-      const combo = validRoleCombinations[Math.floor(Math.random() * validRoleCombinations.length)]
-      const picked = []
+      const combo =
+        validRoleCombinations[
+          Math.floor(Math.random() * validRoleCombinations.length)
+        ];
+      const picked = [];
 
       for (const role of roleKeys) {
-        const shuffled = [...rolePlayers[role]].sort(() => Math.random() - 0.5)
-        const required = combo[role]
+        const shuffled = [...rolePlayers[role]].sort(() => Math.random() - 0.5);
+        const required = combo[role];
         if (shuffled.length < required) {
-          picked.length = 0
-          break
+          picked.length = 0;
+          break;
         }
-        picked.push(...shuffled.slice(0, required))
+        picked.push(...shuffled.slice(0, required));
       }
 
       if (picked.length !== 11) {
-        continue
+        continue;
       }
 
-      const total = picked.reduce((sum, player) => sum + player.credits, 0)
+      const total = picked.reduce((sum, player) => sum + player.credits, 0);
       const awayCount = picked.filter(
-        (player) => String(player.country || '').trim().toLowerCase() !== String(homeCountry || '').trim().toLowerCase(),
-      ).length
+        (player) =>
+          String(player.country || "")
+            .trim()
+            .toLowerCase() !==
+          String(homeCountry || "")
+            .trim()
+            .toLowerCase(),
+      ).length;
       const teamCounts = picked.reduce((acc, player) => {
-        const teamKey = String(player.team || '').trim().toLowerCase()
-        acc[teamKey] = (acc[teamKey] || 0) + 1
-        return acc
-      }, {})
-      const exceedsTeamLimit = Object.values(teamCounts).some((count) => count > 7)
+        const teamKey = String(player.team || "")
+          .trim()
+          .toLowerCase();
+        acc[teamKey] = (acc[teamKey] || 0) + 1;
+        return acc;
+      }, {});
+      const exceedsTeamLimit = Object.values(teamCounts).some(
+        (count) => count > 7,
+      );
 
-      if (total <= budgetCap && awayCount <= 4 && !exceedsTeamLimit && total > bestTotal) {
-        bestSelection = picked
-        bestTotal = total
+      if (
+        total <= budgetCap &&
+        awayCount <= 4 &&
+        !exceedsTeamLimit &&
+        total > bestTotal
+      ) {
+        bestSelection = picked;
+        bestTotal = total;
       }
 
-      if (Math.abs(total - budgetCap) < 0.001 && awayCount <= 4 && !exceedsTeamLimit) {
-        bestSelection = picked
-        bestTotal = total
-        break
+      if (
+        Math.abs(total - budgetCap) < 0.001 &&
+        awayCount <= 4 &&
+        !exceedsTeamLimit
+      ) {
+        bestSelection = picked;
+        bestTotal = total;
+        break;
       }
     }
 
     if (!bestSelection) {
-      setSelectionMessage('Could not find a random 11-player squad within 100 credits, max 4 away players, and max 7 players per team. Try again.')
-      return
+      setSelectionMessage(
+        "Could not find a random 11-player squad within 100 credits, max 4 away players, and max 7 players per team. Try again.",
+      );
+      return;
     }
 
-    dispatch(setSelectedIds(bestSelection.map((player) => player.id)))
+    dispatch(setSelectedIds(bestSelection.map((player) => player.id)));
     setSelectionMessage(
       bestTotal === budgetCap
-        ? 'Random squad selected with 100 credits.'
+        ? "Random squad selected with 100 credits."
         : `Random squad selected with ${bestTotal.toFixed(1)} credits (<= 100).`,
-    )
-    dispatch(clearValidationState())
-  }
+    );
+    dispatch(clearValidationState());
+  };
 
   const handleValidateSquad = async () => {
     if (!authToken) {
-      dispatch(setValidationError('Please login first to validate the squad.'))
-      return
+      dispatch(setValidationError("Please login first to validate the squad."));
+      return;
     }
 
     if (selectedIds.length !== 11) {
-      dispatch(setValidationError('Select exactly 11 players before validation.'))
-      return
+      dispatch(
+        setValidationError("Select exactly 11 players before validation."),
+      );
+      return;
     }
 
-    if (!captainId || !viceCaptainId || Number(captainId) === Number(viceCaptainId)) {
-      dispatch(setValidationError('Captain and vice-captain must be different selected players.'))
-      return
+    if (
+      !captainId ||
+      !viceCaptainId ||
+      Number(captainId) === Number(viceCaptainId)
+    ) {
+      dispatch(
+        setValidationError(
+          "Captain and vice-captain must be different selected players.",
+        ),
+      );
+      return;
     }
 
-    setValidateLoading(true)
+    setValidateLoading(true);
 
     try {
-      const response = await fetch('/api/v1/gameplay/squad/validate', {
-        method: 'POST',
+      const response = await fetch("/api/v1/gameplay/squad/validate", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
@@ -505,57 +546,63 @@ function App() {
           budgetCap,
           leagueSeasonId: selectedLeagueSeason,
         }),
-      })
+      });
 
-      const payload = await response.json()
+      const payload = await response.json();
       if (!response.ok || !payload.success) {
-        dispatch(setValidationError(payload.message || 'Validation failed'))
-        setValidateLoading(false)
-        return
+        dispatch(setValidationError(payload.message || "Validation failed"));
+        setValidateLoading(false);
+        return;
       }
 
-      dispatch(setValidationResult(payload.data))
-      setValidateLoading(false)
+      dispatch(setValidationResult(payload.data));
+      setValidateLoading(false);
     } catch {
-      dispatch(setValidationError('Network error while validating squad.'))
-      setValidateLoading(false)
+      dispatch(setValidationError("Network error while validating squad."));
+      setValidateLoading(false);
     }
-  }
+  };
 
   const handleLogout = () => {
-    dispatch(clearAuthSession())
-    dispatch(clearValidationState())
-    authLogout()
-    setAuthError('')
-    setAuthNotice('')
-  }
+    dispatch(clearAuthSession());
+    dispatch(clearValidationState());
+    authLogout();
+    setAuthError("");
+    setAuthNotice("");
+  };
 
   const handleApplyTransfers = async () => {
     if (!authToken || !selectedLeagueSeason || !selectedFixture) {
-      setApplyMessage('Select league and fixture first.')
-      return
+      setApplyMessage("Select league and fixture first.");
+      return;
     }
 
     if (selectedIds.length !== 11) {
-      setApplyMessage('Select exactly 11 players before applying transfers.')
-      return
+      setApplyMessage("Select exactly 11 players before applying transfers.");
+      return;
     }
 
-    if (!captainId || !viceCaptainId || Number(captainId) === Number(viceCaptainId)) {
-      setApplyMessage('Captain and vice-captain must be different selected players.')
-      return
+    if (
+      !captainId ||
+      !viceCaptainId ||
+      Number(captainId) === Number(viceCaptainId)
+    ) {
+      setApplyMessage(
+        "Captain and vice-captain must be different selected players.",
+      );
+      return;
     }
 
-    setApplyLoading(true)
-    setApplyMessage('')
+    setApplyLoading(true);
+    setApplyMessage("");
 
     try {
       const response = await fetch(
         `/api/v1/gameplay/leagues/${selectedLeagueSeason}/fixtures/${selectedFixture.id}/squad/apply`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
@@ -565,27 +612,29 @@ function App() {
             budgetCap,
           }),
         },
-      )
+      );
 
-      const payload = await response.json()
+      const payload = await response.json();
       if (!response.ok || !payload.success) {
-        setApplyMessage(payload.message || 'Failed to apply transfers')
-        setApplyLoading(false)
-        return
+        setApplyMessage(payload.message || "Failed to apply transfers");
+        setApplyLoading(false);
+        return;
       }
 
-      const result = payload.data
+      const result = payload.data;
       const scopeText = result.deferredToNextFixture
         ? `Applied to upcoming fixture #${result.appliedToFixtureId} (current fixture already started).`
-        : `Applied to fixture #${result.appliedToFixtureId}.`
+        : `Applied to fixture #${result.appliedToFixtureId}.`;
 
-      setApplyMessage(`${scopeText} Transfers used now: ${result.transfersUsed}.`)
+      setApplyMessage(
+        `${scopeText} Transfers used now: ${result.transfersUsed}.`,
+      );
 
       // Refresh transfer meta after successful apply
-      const metaResponse = await fetch('/api/v1/gameplay/transfers/meta', {
-        method: 'POST',
+      const metaResponse = await fetch("/api/v1/gameplay/transfers/meta", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
@@ -595,24 +644,24 @@ function App() {
           tossAt: selectedFixture.tossAt,
           leagueSeasonId: selectedLeagueSeason,
         }),
-      })
+      });
 
-      const metaPayload = await metaResponse.json()
+      const metaPayload = await metaResponse.json();
       if (metaResponse.ok && metaPayload.success) {
-        setTransferMeta(metaPayload.data)
+        setTransferMeta(metaPayload.data);
       }
 
-      setApplyLoading(false)
+      setApplyLoading(false);
     } catch {
-      setApplyMessage('Network error while applying transfers.')
-      setApplyLoading(false)
+      setApplyMessage("Network error while applying transfers.");
+      setApplyLoading(false);
     }
-  }
+  };
 
   // Render: Not authenticated
   if (!authToken || !currentUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-mist px-4 py-10 font-body text-ink">
+      <div className=" bg-gradient-to-r from-[#ffffff] to-[#e0f8c8]   font-body text-ink">
         <AuthPanel
           onLogin={handleLogin}
           onRegister={handleRegister}
@@ -623,122 +672,205 @@ function App() {
           setNotice={setAuthNotice}
         />
       </div>
-    )
+    );
   }
 
-  // Render: League selector (after auth, before squad builder)
-  if (!selectedLeagueSeason) {
-    return <LeagueSelector />
-  }
+  const MainApp = () => {
+    const navigate = useNavigate();
 
-  // Render: Fixture selector (after league selected, before squad builder)
-  if (!selectedFixture) {
+    const scrollToSquadBuilder = () => {
+      const target = document.getElementById("squad-builder-section");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+
+    const handleBuildSquadClick = () => {
+      if (window.location.pathname !== "/") {
+        navigate("/");
+        setTimeout(scrollToSquadBuilder, 120);
+        return;
+      }
+      scrollToSquadBuilder();
+    };
+
+    const handleViewLeaderboardClick = () => {
+      navigate("/league");
+    };
+
+    if (!selectedLeagueSeason) {
+      return (
+        <div className="min-h-screen bg-[#0b2b57] font-body text-ink">
+          <Navbar currentUser={currentUser} onLogout={handleLogout} />
+          <div className="bg-white">
+            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+              <LeagueSelector />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Main app with navbar, league selector, and routes
     return (
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-        <FavoriteBonusPanel
-          authToken={authToken}
-          selectedLeagueSeason={selectedLeagueSeason}
-        />
-        <PrivateLeaguePanel
-          authToken={authToken}
-          selectedLeagueSeason={selectedLeagueSeason}
-          currentUser={currentUser}
-        />
-        <FixtureSelector selectedFixture={selectedFixture} onSelectFixture={setSelectedFixture} />
+      <div className="min-h-screen bg-[#0b2b57] font-body text-ink">
+        <Navbar currentUser={currentUser} onLogout={handleLogout} />
+
+        {/* League Season Selector */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Current League
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {selectedLeague
+                    ? `${selectedLeague.name} - ${selectedLeague.competitionFull}`
+                    : "Loading..."}
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">
+                  {selectedLeague
+                    ? `${selectedLeague.totalFixtures} fixtures`
+                    : ""}
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedFixture(null);
+                    dispatch(selectLeague(null));
+                  }}
+                  className="rounded-lg bg-[#0b2b57] px-4 py-2 text-sm font-medium text-white hover:bg-[#1e4a8a] transition"
+                >
+                  Change League
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <Routes>
+          <Route
+            path="/private-leagues"
+            element={<Navigate replace to="/league" />}
+          />
+          <Route
+            path="/league"
+            element={
+              <div className="bg-white">
+                <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+                  <LeaderboardPage />
+                  <PrivateLeagues
+                    authToken={authToken}
+                    currentUser={currentUser}
+                    selectedLeagueSeason={selectedLeagueSeason}
+                  />
+                </div>
+              </div>
+            }
+          />
+          <Route
+            path="/"
+            element={
+              <div className="bg-white">
+                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                  <Header
+                    onBuildSquad={handleBuildSquadClick}
+                    onViewLeaderboard={handleViewLeaderboardClick}
+                  />
+
+                  <section className="mt-8">
+                    <FavoriteBonusPanel
+                      authToken={authToken}
+                      selectedLeagueSeason={selectedLeagueSeason}
+                    />
+                  </section>
+
+                  {!selectedFixture ? (
+                    <section
+                      id="squad-builder-section"
+                      className="mt-8 mx-auto max-w-5xl"
+                    >
+                      <FixtureSelector
+                        selectedFixture={selectedFixture}
+                        onSelectFixture={setSelectedFixture}
+                      />
+                    </section>
+                  ) : (
+                    <section id="squad-builder-section" className="mt-8">
+                      <PlayerPool
+                        mode={mode}
+                        homeCountry={homeCountry}
+                        roleCounts={roleCounts}
+                        activeTab={activeRoleTab}
+                        displayedPlayers={displayedPlayers}
+                        selectedIds={selectedIds}
+                        creditSort={creditSort}
+                        homeAwayFilter={homeAwayFilter}
+                        teamFilter={teamFilter}
+                        allTeams={allTeams}
+                        searchQuery={searchQuery}
+                        playersLoading={playersLoading}
+                        playersError={playersError}
+                        selectionMessage={selectionMessage}
+                        transferWindowLocked={
+                          transferWindowStatus
+                            ? !transferWindowStatus.windowOpen
+                            : transferMeta?.locked || false
+                        }
+                        selectedCount={selectedIds.length}
+                        creditsUsed={creditsUsed}
+                        creditsLeft={creditsLeft}
+                        onTabChange={(tab) => {
+                          setActiveRoleTab(tab);
+                          setSelectionMessage("");
+                        }}
+                        onTogglePlayer={handleTogglePlayer}
+                        onAutoSelect={handleAutoSelectPlayers}
+                        onSearchChange={setSearchQuery}
+                        onCreditSortChange={setCreditSort}
+                        onHomeAwayChange={setHomeAwayFilter}
+                        onTeamFilterChange={setTeamFilter}
+                        selectedPlayers={selectedPlayers}
+                        captainId={captainId}
+                        viceCaptainId={viceCaptainId}
+                        validateLoading={validateLoading}
+                        validationResult={validationResult}
+                        validationError={validationError}
+                        applyLoading={applyLoading}
+                        applyMessage={applyMessage}
+                        transferMeta={transferMeta}
+                        transferMetaLoading={transferMetaLoading}
+                        transferMetaError={transferMetaError}
+                        transferPolicy={transferPolicy}
+                        transferPolicyLoading={transferPolicyLoading}
+                        transferPolicyError={transferPolicyError}
+                        onModeChange={(newMode) => dispatch(setMode(newMode))}
+                        onCaptainChange={setCaptainId}
+                        onViceCaptainChange={setViceCaptainId}
+                        onValidate={handleValidateSquad}
+                        onApplyTransfers={handleApplyTransfers}
+                      />
+                    </section>
+                  )}
+                </div>
+              </div>
+            }
+          />
+        </Routes>
       </div>
-    )
-  }
+    );
+  };
 
   // Render: Authenticated
-  return (
-    <div className="min-h-screen bg-mist font-body text-ink">
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <LeagueHeader />
-        <Header selectedCount={selectedIds.length} creditsUsed={creditsUsed} creditsLeft={creditsLeft} />
-
-        <section className="mt-6">
-          <FavoriteBonusPanel
-            authToken={authToken}
-            selectedLeagueSeason={selectedLeagueSeason}
-          />
-        </section>
-
-        <section className="mt-6">
-          <PrivateLeaguePanel
-            authToken={authToken}
-            selectedLeagueSeason={selectedLeagueSeason}
-            currentUser={currentUser}
-          />
-        </section>
-
-        <section className="mt-6 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
-          <Sidebar
-            mode={mode}
-            roleCounts={roleCounts}
-            currentUser={currentUser}
-            selectedPlayers={selectedPlayers}
-            captainId={captainId}
-            viceCaptainId={viceCaptainId}
-            validateLoading={validateLoading}
-            validationResult={validationResult}
-            validationError={validationError}
-            transferMeta={transferMeta}
-            transferMetaLoading={transferMetaLoading}
-            transferMetaError={transferMetaError}
-            transferPolicy={transferPolicy}
-            transferPolicyLoading={transferPolicyLoading}
-            transferPolicyError={transferPolicyError}
-            transferWindowStatus={transferWindowStatus}
-            playerLeaderboard={playerLeaderboard}
-            managerLeaderboard={managerLeaderboard}
-            leaderboardLoading={leaderboardLoading}
-            managerLeaderboardLoading={managerLeaderboardLoading}
-            leaderboardError={leaderboardError}
-            managerLeaderboardError={managerLeaderboardError}
-            applyLoading={applyLoading}
-            applyMessage={applyMessage}
-            onModeChange={(newMode) => dispatch(setMode(newMode))}
-            onCaptainChange={setCaptainId}
-            onViceCaptainChange={setViceCaptainId}
-            onValidate={handleValidateSquad}
-            onApplyTransfers={handleApplyTransfers}
-            onLogout={handleLogout}
-          />
-
-          <PlayerPool
-            mode={mode}
-            homeCountry={homeCountry}
-            activeTab={activeRoleTab}
-            displayedPlayers={displayedPlayers}
-            selectedIds={selectedIds}
-            creditSort={creditSort}
-            homeAwayFilter={homeAwayFilter}
-            teamFilter={teamFilter}
-            allTeams={allTeams}
-            searchQuery={searchQuery}
-            playersLoading={playersLoading}
-            playersError={playersError}
-            selectionMessage={selectionMessage}
-            transferWindowLocked={
-              transferWindowStatus
-                ? !transferWindowStatus.windowOpen
-                : transferMeta?.locked || false
-            }
-            onTabChange={(tab) => {
-              setActiveRoleTab(tab)
-              setSelectionMessage('')
-            }}
-            onTogglePlayer={handleTogglePlayer}
-            onAutoSelect={handleAutoSelectPlayers}
-            onSearchChange={setSearchQuery}
-            onCreditSortChange={setCreditSort}
-            onHomeAwayChange={setHomeAwayFilter}
-            onTeamFilterChange={setTeamFilter}
-          />
-        </section>
-      </main>
-    </div>
-  )
+  if (authToken && currentUser) {
+    return (
+      <Router>
+        <MainApp />
+      </Router>
+    );
+  }
 }
 
-export default App
+export default App;

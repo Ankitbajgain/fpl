@@ -1,41 +1,37 @@
-import { StatCard } from '../Common/StatCard'
-import { HeroSection } from './HeroSection'
-
-export function Header({ selectedCount, creditsUsed, creditsLeft }) {
+export function Header({ onBuildSquad, onViewLeaderboard }) {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/60 bg-gradient-to-br from-[#103a2e] via-[#0f5e4d] to-[#ec8456] p-6 text-white shadow-card sm:p-10">
-      <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/20 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-16 left-10 h-40 w-40 rounded-full bg-[#ffe3d6]/40 blur-2xl" />
+    <section className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 text-gray-900 shadow-lg sm:p-10">
+      <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-[#0b2b57]/10 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-16 left-10 h-40 w-40 rounded-full bg-[#0b2b57]/5 blur-2xl" />
 
-      <div className="relative z-10 grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-        <div>
-          <p className="inline-block rounded-full border border-white/35 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.2em]">
-            New FPL Frontend
-          </p>
-          <h1 className="mt-5 font-heading text-3xl leading-tight sm:text-5xl">
-            Build Matchday Squads Faster
-            <span className="block text-[#ffe6d8]">Across Mobile & Desktop</span>
-          </h1>
-          <p className="mt-4 max-w-xl text-sm text-white/85 sm:text-base">
-            React + Tailwind + Redux experience for fantasy management with formation
-            controls, budget tracking, favorites, and live style cards.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#13382f] transition hover:bg-[#fef4ee]">
-              Create Team
-            </button>
-            <button className="rounded-xl border border-white/50 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">
-              Explore Fixtures
-            </button>
-          </div>
-        </div>
-
-        <div className="grid gap-3 rounded-2xl border border-white/20 bg-black/15 p-4 backdrop-blur-md sm:grid-cols-3 lg:grid-cols-1">
-          <StatCard label="Players Selected" value={`${selectedCount}/11`} />
-          <StatCard label="Credits Used" value={creditsUsed.toFixed(1)} />
-          <StatCard label="Credits Left" value={creditsLeft.toFixed(1)} />
+      <div className="relative z-10">
+        <p className="inline-block rounded-full border border-[#0b2b57]/20 bg-[#0b2b57]/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-[#0b2b57]">
+          Fantasy League
+        </p>
+        <h1 className="mt-5 font-heading text-3xl leading-tight text-gray-900 sm:text-5xl">
+          Build Your Winning Squad
+          <span className="block text-[#0b2b57]">For Every Matchday</span>
+        </h1>
+        <p className="mt-4 max-w-xl text-sm text-gray-600 sm:text-base">
+          Select your captain, vice-captain, and optimal formation. Track your
+          budget, monitor transfers, and compete with friends in private
+          leagues.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            onClick={onBuildSquad}
+            className="rounded-xl bg-[#0b2b57] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1e4a8a]"
+          >
+            Build Squad
+          </button>
+          <button
+            onClick={onViewLeaderboard}
+            className="rounded-xl border border-[#0b2b57]/30 px-5 py-2.5 text-sm font-semibold text-[#0b2b57] transition hover:bg-[#0b2b57]/5"
+          >
+            View Leaderboard
+          </button>
         </div>
       </div>
     </section>
-  )
+  );
 }

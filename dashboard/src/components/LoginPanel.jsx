@@ -1,25 +1,51 @@
-import { useState } from 'react'
+import { useState } from "react";
 
 export default function LoginPanel({ onLogin, loading, error }) {
-  const [email, setEmail] = useState('admin@newfpl.local')
-  const [password, setPassword] = useState('AdminPass123')
+  const [email, setEmail] = useState("admin@newfpl.local");
+  const [password, setPassword] = useState("AdminPass123");
 
   return (
     <div className="panel login-panel">
-      <h1>Admin Dashboard</h1>
-      <p>Manage leagues, fixtures, transfer windows, and sync workflows.</p>
+      <div className="login-card-head">
+        <h1>Welcome</h1>
+        <p>Sign in with your admin account to continue.</p>
+      </div>
 
-      <label>Email</label>
-      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@newfpl.local" />
+      <div className="login-card-body">
+        <div className="panel-section">
+          <div className="field">
+            <label htmlFor="admin-email">Admin Email Address</label>
+            <input
+              id="admin-email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your admin email"
+              autoComplete="email"
+            />
+          </div>
 
-      <label>Password</label>
-      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
+          <div className="field">
+            <label htmlFor="admin-password">Password</label>
+            <input
+              id="admin-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+            />
+          </div>
+        </div>
 
-      <button onClick={() => onLogin(email, password)} disabled={loading}>
-        {loading ? 'Signing in...' : 'Sign In as Admin'}
-      </button>
+        <button onClick={() => onLogin(email, password)} disabled={loading}>
+          {loading ? "Signing in..." : "Sign In"}
+        </button>
 
-      {error ? <p className="error-text">{error}</p> : null}
+        <p className="muted" style={{ marginTop: 10 }}>
+          Need help? Use your approved admin account credentials.
+        </p>
+        {error ? <p className="error-text">{error}</p> : null}
+      </div>
     </div>
-  )
+  );
 }

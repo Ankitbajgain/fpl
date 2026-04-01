@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from "react";
 
 export default function TransferPolicyPanel({ policy, onSave, saving }) {
-  const [form, setForm] = useState(null)
+  const [form, setForm] = useState(null);
 
   const current = useMemo(() => {
-    if (!policy) return null
+    if (!policy) return null;
     if (!form || form.leagueSeasonId !== policy.leagueSeasonId) {
       return {
         leagueSeasonId: policy.leagueSeasonId,
@@ -14,41 +14,111 @@ export default function TransferPolicyPanel({ policy, onSave, saving }) {
         qualifier1MatchNumber: policy.qualifier1MatchNumber,
         unlimitedPreMatch1: policy.unlimitedPreMatch1,
         unlimitedBetweenLeagueAndQ1: policy.unlimitedBetweenLeagueAndQ1,
-      }
+      };
     }
-    return form
-  }, [form, policy])
+    return form;
+  }, [form, policy]);
 
   if (!policy || !current) {
-    return <div className="panel"><h2>Transfer Policy</h2><p>Loading...</p></div>
+    return (
+      <div className="panel">
+        <h2>Transfer Policy</h2>
+        <p>Loading...</p>
+      </div>
+    );
   }
 
-  const update = (key, value) => setForm({ ...current, [key]: value })
+  const update = (key, value) => setForm({ ...current, [key]: value });
 
   return (
     <div className="panel">
       <h2>Transfer Policy</h2>
+      <p className="panel-intro">
+        Set transfer limits for league and playoff stages.
+      </p>
       <p className="muted">Source: {policy.source}</p>
       <div className="grid two">
-        <label>League Stage Matches</label>
-        <input type="number" value={current.leagueStageMatchCount} onChange={(e) => update('leagueStageMatchCount', Number(e.target.value))} />
+        <div className="field">
+          <label>League Stage Matches</label>
+          <input
+            type="number"
+            value={current.leagueStageMatchCount}
+            onChange={(e) =>
+              update("leagueStageMatchCount", Number(e.target.value))
+            }
+          />
+        </div>
 
-        <label>League Stage Transfer Cap</label>
-        <input type="number" value={current.leagueStageTransferCap} onChange={(e) => update('leagueStageTransferCap', Number(e.target.value))} />
+        <div className="field">
+          <label>League Stage Transfer Cap</label>
+          <input
+            type="number"
+            value={current.leagueStageTransferCap}
+            onChange={(e) =>
+              update("leagueStageTransferCap", Number(e.target.value))
+            }
+          />
+        </div>
 
-        <label>Playoff Transfer Cap</label>
-        <input type="number" value={current.playoffTransferCap} onChange={(e) => update('playoffTransferCap', Number(e.target.value))} />
+        <div className="field">
+          <label>Playoff Transfer Cap</label>
+          <input
+            type="number"
+            value={current.playoffTransferCap}
+            onChange={(e) =>
+              update("playoffTransferCap", Number(e.target.value))
+            }
+          />
+        </div>
 
-        <label>Qualifier 1 Match Number</label>
-        <input type="number" value={current.qualifier1MatchNumber} onChange={(e) => update('qualifier1MatchNumber', Number(e.target.value))} />
+        <div className="field">
+          <label>Qualifier 1 Match Number</label>
+          <input
+            type="number"
+            value={current.qualifier1MatchNumber}
+            onChange={(e) =>
+              update("qualifier1MatchNumber", Number(e.target.value))
+            }
+          />
+        </div>
       </div>
 
-      <div className="row">
-        <label><input type="checkbox" checked={current.unlimitedPreMatch1} onChange={(e) => update('unlimitedPreMatch1', e.target.checked)} /> Unlimited pre Match 1</label>
-        <label><input type="checkbox" checked={current.unlimitedBetweenLeagueAndQ1} onChange={(e) => update('unlimitedBetweenLeagueAndQ1', e.target.checked)} /> Unlimited between League and Q1</label>
+      <div className="row" style={{ marginTop: 8 }}>
+        <label
+          style={{
+            textTransform: "none",
+            letterSpacing: "normal",
+            fontWeight: 600,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={current.unlimitedPreMatch1}
+            onChange={(e) => update("unlimitedPreMatch1", e.target.checked)}
+          />{" "}
+          Unlimited transfers before Match 1
+        </label>
+        <label
+          style={{
+            textTransform: "none",
+            letterSpacing: "normal",
+            fontWeight: 600,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={current.unlimitedBetweenLeagueAndQ1}
+            onChange={(e) =>
+              update("unlimitedBetweenLeagueAndQ1", e.target.checked)
+            }
+          />{" "}
+          Unlimited transfers between League and Q1
+        </label>
       </div>
 
-      <button onClick={() => onSave(current)} disabled={saving}>{saving ? 'Saving...' : 'Save Policy'}</button>
+      <button onClick={() => onSave(current)} disabled={saving}>
+        {saving ? "Saving..." : "Save Policy"}
+      </button>
     </div>
-  )
+  );
 }

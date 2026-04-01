@@ -13,7 +13,9 @@ export function FilterPanel({
   isLocked,
 }) {
   return (
-    <div className={`space-y-3 rounded-xl p-3 ${isLocked ? 'bg-red-50' : 'bg-[#f8f2e8]'}`}>
+    <div
+      className={`space-y-3 rounded-xl border p-3 ${isLocked ? "border-red-200 bg-red-50" : "border-[#e3ebf5] bg-[#f8fbff]"}`}
+    >
       <div>
         <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a7683]">
           Search
@@ -43,7 +45,7 @@ export function FilterPanel({
         </select>
       </div>
 
-      {mode === 'Classic' && (
+      {mode === "Classic" && (
         <div>
           <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a7683]">
             Home / Away
@@ -55,7 +57,7 @@ export function FilterPanel({
             className="mt-1 w-full rounded-lg border border-[#ddd2c3] bg-white px-3 py-2 text-sm disabled:opacity-60"
           >
             <option value="all">All Players</option>
-            <option value="home">Home ({homeCountry || 'League'})</option>
+            <option value="home">Home ({homeCountry || "League"})</option>
             <option value="away">Away 🛫</option>
           </select>
         </div>
@@ -63,7 +65,7 @@ export function FilterPanel({
 
       <div>
         <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#6a7683]">
-          {mode === 'Classic' ? 'Franchise' : 'National Team'}
+          {mode === "Classic" ? "Franchise" : "National Team"}
         </label>
         <select
           value={teamFilter}
@@ -80,5 +82,5 @@ export function FilterPanel({
         </select>
       </div>
     </div>
-  )
+  );
 }
